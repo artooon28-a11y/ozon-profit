@@ -1,0 +1,836 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="referrer" content="no-referrer">
+<title>Прибыль на Ozon</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Unbounded:wght@500;600&display=swap">
+<style>
+  /* Layout: one working column — upload strip, settings, totals, product ledger with expandable orders */
+  :root {
+    --bg: #f4f6f2;
+    --panel: #ffffff;
+    --sunk: #eef1ec;
+    --fg: #16201b;
+    --muted: #5b675f;
+    --line: #dde3dc;
+    --accent: #0d7350;
+    --accent-ink: #ffffff;
+    --accent-soft: #e2f1ea;
+    --pos: #0d7350;
+    --neg: #b8402b;
+    --warn: #9a6200;
+    --shadow: 0 8px 28px rgba(22, 32, 27, .14);
+    --f-display: "Unbounded", "Golos Text", system-ui, sans-serif;
+    --f-body: "Golos Text", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --r: 10px;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0e1411; --panel: #151d19; --sunk: #111915; --fg: #e5ece7; --muted: #95a39a; --line: #26322c;
+      --accent: #3fc48f; --accent-ink: #062016; --accent-soft: #163327; --pos: #4fd09b; --neg: #f0806a; --warn: #e3b04b;
+      --shadow: 0 8px 28px rgba(0, 0, 0, .5); color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0e1411; --panel: #151d19; --sunk: #111915; --fg: #e5ece7; --muted: #95a39a; --line: #26322c;
+    --accent: #3fc48f; --accent-ink: #062016; --accent-soft: #163327; --pos: #4fd09b; --neg: #f0806a; --warn: #e3b04b;
+    --shadow: 0 8px 28px rgba(0, 0, 0, .5); color-scheme: dark;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { background: var(--bg); color: var(--fg); margin: 0; }
+  body { font-family: var(--f-body); font-size: 15px; line-height: 1.5; }
+  .wrap { max-width: 1180px; margin-inline: auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 28px 48px; display: grid; gap: 22px; }
+  h1 { font-family: var(--f-display); font-weight: 600; font-size: clamp(26px, 4vw, 38px); line-height: 1.1; letter-spacing: -.01em; margin: 0; text-wrap: balance; }
+  h2 { font-size: 17px; font-weight: 600; margin: 0; }
+  p { margin: 0; }
+  .lede { color: var(--muted); max-width: 62ch; margin-top: 8px; }
+  .muted { color: var(--muted); }
+  .small { font-size: 13px; }
+  .num { font-variant-numeric: tabular-nums; }
+  .pos { color: var(--pos); }
+  .neg { color: var(--neg); }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  /* upload */
+  .upload { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; }
+  @media (max-width: 760px) { .upload { grid-template-columns: minmax(0, 1fr); } }
+  .drop { position: relative; border: 2px dashed var(--line); border-radius: var(--r); background: var(--panel); padding: 22px; display: grid; gap: 12px; align-content: center; justify-items: start; transition: border-color .15s, background .15s; }
+  .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .drop strong { font-size: 17px; }
+  .drop input[type=file] { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 7px 14px; cursor: pointer; }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 500; }
+  .btn.primary:hover { filter: brightness(1.06); }
+  .steps { background: var(--sunk); border-radius: var(--r); padding: 18px 20px; display: grid; gap: 8px; }
+  .steps ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+  .path { font-weight: 500; }
+  .files { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .chipfile { display: inline-flex; align-items: center; gap: 6px; background: var(--accent-soft); border-radius: 999px; padding: 3px 4px 3px 12px; font-size: 13px; }
+  .chipfile button { border: 0; background: transparent; cursor: pointer; width: 22px; height: 22px; border-radius: 50%; line-height: 1; }
+  .chipfile button:hover { background: var(--line); }
+  .err { color: var(--neg); font-size: 14px; }
+  .notice { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; border: 1px solid var(--warn); color: var(--warn); border-radius: var(--r); padding: 10px 14px; font-size: 14px; }
+
+  /* settings */
+  .bar { display: flex; flex-wrap: wrap; gap: 10px 20px; align-items: center; }
+  .field { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; color: var(--muted); }
+  .field input[type=date], .field select, .field input[type=number] { border: 1px solid var(--line); background: var(--panel); border-radius: 8px; padding: 6px 8px; color: var(--fg); }
+  .field input[type=number] { width: 4.5em; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: var(--panel); padding: 6px 12px; cursor: pointer; font-size: 14px; }
+  .seg button + button { border-left: 1px solid var(--line); }
+  .seg button[aria-pressed=true] { background: var(--fg); color: var(--bg); }
+
+  /* totals */
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); gap: 12px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: grid; gap: 4px; }
+  .kpi .l { font-size: 13px; color: var(--muted); }
+  .kpi .v { font-family: var(--f-display); font-weight: 500; font-size: 22px; font-variant-numeric: tabular-nums; letter-spacing: -.01em; }
+  .kpi.hero { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .kpi.hero .l { color: inherit; opacity: .75; }
+  .kpi .s { font-size: 12px; color: var(--muted); }
+  .kpi.hero .s { color: inherit; opacity: .7; }
+
+  /* table */
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: grid; gap: 10px; min-width: 0; position: relative; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th { font-size: 12px; font-weight: 500; color: var(--muted); text-align: right; padding: 6px 6px; white-space: normal; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: bottom; }
+  td { padding: 10px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; vertical-align: top; }
+  .stack .sub { white-space: normal; max-width: 11rem; text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  tr.prod { cursor: pointer; }
+  tr.prod:hover > td { background: var(--sunk); }
+  .pname { display: flex; gap: 8px; white-space: normal; min-width: 10rem; max-width: 16rem; }
+  .caret { color: var(--muted); display: inline-block; transition: transform .15s; width: 1em; flex: none; }
+  tr.prod.open .caret { transform: rotate(90deg); }
+  .sub { font-size: 12px; color: var(--muted); }
+  .costin { width: 5.5em; text-align: right; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; background: var(--bg); color: var(--fg); }
+  .costin.missing { border-color: var(--warn); }
+  .stack { display: grid; justify-items: end; gap: 2px; }
+  .stack b { font-weight: 600; }
+  td.fees { cursor: help; }
+  td.fees span { border-bottom: 1px dotted var(--muted); }
+  tr.det > td { background: var(--sunk); padding: 0 0 12px 28px; }
+  tr.det table { font-size: 13px; }
+  tr.det td, tr.det th { padding: 6px 8px; }
+  .detbox { max-height: 26rem; overflow: auto; }
+  .tag { display: inline-block; border-radius: 999px; padding: 0 8px; font-size: 12px; border: 1px solid var(--line); }
+  .tag.sale { color: var(--pos); border-color: currentColor; }
+  .tag.bad { color: var(--neg); border-color: currentColor; }
+  .tip { position: absolute; z-index: 5; pointer-events: none; min-width: 16rem; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 8px 10px; font-size: 13px; font-variant-numeric: tabular-nums; }
+  .tip .t { color: var(--muted); margin-bottom: 4px; }
+  .tip .r { display: flex; justify-content: space-between; gap: 16px; padding: 1px 0; }
+  .tip .r.sum { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; font-weight: 600; }
+  .foot { color: var(--muted); font-size: 13px; display: grid; gap: 4px; max-width: 75ch; }
+  .api { background: var(--fg); color: var(--bg); border-radius: var(--r); padding: 24px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+  @media (max-width: 760px) { .api { grid-template-columns: minmax(0, 1fr); } }
+  .api h2 { font-family: var(--f-display); font-weight: 500; font-size: 22px; line-height: 1.2; text-wrap: balance; }
+  .api p { opacity: .82; margin-top: 8px; max-width: 58ch; }
+  .api ul { margin: 14px 0 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+  .api li { display: flex; gap: 10px; }
+  .api li::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--accent); margin-top: 8px; }
+  .api .how { background: color-mix(in srgb, var(--bg) 10%, transparent); border: 1px solid color-mix(in srgb, var(--bg) 22%, transparent); border-radius: var(--r); padding: 16px 18px; display: grid; gap: 10px; font-size: 14px; }
+  .api .how ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+  .api .how .note { font-size: 12px; opacity: .75; }
+  .api a.cta { justify-self: start; display: inline-block; background: var(--accent); color: var(--accent-ink); text-decoration: none; font-weight: 500; border-radius: 8px; padding: 9px 16px; }
+  .api a.cta:hover { filter: brightness(1.08); }
+  .contact { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 16px; }
+  .contact strong { font-size: 15px; color: var(--fg); }
+  .contact a { color: var(--accent); font-weight: 500; text-decoration: none; }
+  .contact a:hover { text-decoration: underline; }
+  .apibar { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 16px 18px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px 16px; align-items: center; }
+  .apibar-main { display: grid; gap: 2px; min-width: 0; }
+  .apibar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .apibar-note, .apibar .err { grid-column: 1 / -1; }
+  @media (max-width: 620px) { .apibar { grid-template-columns: minmax(0, 1fr); } }
+  .api .fld { display: grid; gap: 4px; font-size: 13px; opacity: .9; }
+  .api .fld input { font: inherit; font-size: 14px; color: var(--fg); background: var(--bg); border: 1px solid transparent; border-radius: 8px; padding: 8px 10px; }
+  .api button.cta { justify-self: start; border: 0; cursor: pointer; background: var(--accent); color: var(--accent-ink); font-weight: 500; border-radius: 8px; padding: 9px 16px; }
+  .api button.cta[disabled] { opacity: .6; cursor: progress; }
+  .api .formerr { margin: 0; font-size: 13px; background: var(--bg); color: var(--neg); border-radius: 6px; padding: 6px 10px; }
+  .loading { opacity: .5; transition: opacity .2s; }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Прибыль на Ozon</h1>
+    <p class="lede">Перетащите отчёт о начислениях из кабинета продавца и сразу увидите чистую прибыль по каждому товару: после комиссии, логистики, невыкупов, налога и себестоимости. Файл обрабатывается в вашем браузере и никуда не отправляется.</p>
+  </header>
+
+  <section class="upload" aria-label="Загрузка отчёта">
+    <div class="drop" id="drop">
+      <strong>Перетащите сюда файлы из кабинета</strong>
+      <span class="muted small">Отчёт о начислениях, а для себестоимости — файл «Товары и цены». Можно несколько отчётов за разные месяцы.</span>
+      <span class="btn primary" aria-hidden="true">Выбрать файл</span>
+      <input type="file" id="file" accept=".xlsx,.xls,.csv" multiple aria-label="Выбрать отчёт о начислениях">
+    </div>
+    <div class="steps">
+      <h2>Где взять отчёт</h2>
+      <ol class="small">
+        <li>В кабинете продавца откройте <span class="path">Финансы → Начисления → Детализация начислений</span>.</li>
+        <li>Нажмите <span class="path">Скачать отчёт</span>, выберите <span class="path">По начислениям</span> и период.</li>
+        <li>Для себестоимости откройте <span class="path">Цены</span> и нажмите <span class="path">Скачать шаблон xlsx</span>.</li>
+        <li>Перетащите оба файла в поле слева.</li>
+      </ol>
+      <p class="sub">Себестоимость подставится из файла «Товары и цены». Если её нет в кабинете, введите в таблице ниже: она запомнится в этом браузере.</p>
+    </div>
+  </section>
+
+  <section class="apibar" id="apibar" hidden aria-live="polite">
+    <div class="apibar-main">
+      <strong id="apiStatus">Загружаю данные из Ozon…</strong>
+      <span class="sub" id="apiMeta"></span>
+    </div>
+    <div class="apibar-actions">
+      <button type="button" class="btn" id="apiRefresh">Обновить</button>
+      <button type="button" class="btn" id="apiOff">Отключить</button>
+    </div>
+    <p class="sub apibar-note">Это ваша личная ссылка на дашборд: сохраните её в закладки и не пересылайте. Отключить доступ можно кнопкой выше или удалив ключ в кабинете Ozon.</p>
+    <p class="err" id="apiErr" hidden></p>
+  </section>
+
+  <div class="files" id="files" hidden></div>
+  <p class="err" id="err" role="alert" hidden></p>
+  <div class="notice" id="demo">Сейчас показан пример с выдуманными товарами. Загрузите свой отчёт, чтобы увидеть свои цифры.</div>
+
+  <section class="bar" aria-label="Настройки расчёта">
+    <label class="field">Налог
+      <select id="tax">
+        <option value="0.04">НПД 4% (продажи физлицам)</option>
+        <option value="0.06">НПД 6% (продажи юрлицам)</option>
+        <option value="0.06u">УСН «Доходы» 6%</option>
+        <option value="0.01">УСН «Доходы» 1% (льготная ставка)</option>
+        <option value="custom">Своя ставка</option>
+      </select>
+    </label>
+    <label class="field" id="customWrap" hidden><input type="number" id="taxCustom" min="0" max="30" step="0.1" value="4"> % от выручки</label>
+    <span class="field">Период
+      <input type="date" id="from" aria-label="С даты">
+      <span>—</span>
+      <input type="date" id="to" aria-label="По дату">
+    </span>
+    <span class="seg" role="group" aria-label="Быстрый выбор периода">
+      <button type="button" data-days="7">7 дней</button>
+      <button type="button" data-days="30">30 дней</button>
+      <button type="button" data-days="all">Весь отчёт</button>
+    </span>
+  </section>
+
+  <section class="kpis" id="kpis" aria-label="Итоги за период">
+    <div class="kpi hero"><span class="l">Чистая прибыль</span><span class="v" data-k="profit">—</span><span class="s" data-k="margin"></span></div>
+    <div class="kpi"><span class="l">Ozon перечислит</span><span class="v" data-k="payout">—</span><span class="s" data-k="realization"></span></div>
+    <div class="kpi"><span class="l">Налог</span><span class="v" data-k="tax">—</span></div>
+    <div class="kpi"><span class="l">Себестоимость проданного</span><span class="v" data-k="cost">—</span><span class="s" data-k="costnote"></span></div>
+    <div class="kpi"><span class="l">Выкуп</span><span class="v" data-k="buyout">—</span><span class="s" data-k="buyoutnote"></span></div>
+  </section>
+
+  <section class="card" id="ledger">
+    <h2>Товары: последняя продажа и прибыль на 1 шт.</h2>
+    <p class="sub">Нажмите на товар, чтобы увидеть все его заказы за период. Наведите на «Расходы Ozon», чтобы увидеть, из чего они состоят. «С учётом выкупа» — сколько в среднем остаётся с продажи, если разложить на неё потери от невыкупов; в скобках — маржа от цены.</p>
+    <div class="scroll">
+      <table id="tbl">
+        <thead><tr>
+          <th>Товар</th>
+          <th>Последняя продажа</th>
+          <th>Цена</th>
+          <th>Расходы Ozon</th>
+          <th>К выплате</th>
+          <th>Налог</th>
+          <th>Себестоимость, ₽/шт.</th>
+          <th>Прибыль</th>
+          <th>Выкуп</th>
+          <th>С учётом выкупа<br>(маржа)</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <div class="tip" id="tip" role="tooltip" hidden></div>
+  </section>
+
+  <section class="api" id="api" aria-labelledby="api-title">
+    <div>
+      <h2 id="api-title">Понравился расчёт? Подключите кабинет по API, и файлы больше не понадобятся</h2>
+      <p>Сейчас вы скачиваете отчёт вручную. После подключения по официальному Seller API данные подтягиваются сами, а ваш дашборд открывается по личной ссылке.</p>
+      <ul>
+        <li>Данные обновляются сами, без скачивания файлов.</li>
+        <li>Последние месяцы продаж в одном месте.</li>
+        <li>Себестоимость и новые товары подхватываются автоматически.</li>
+      </ul>
+    </div>
+    <form class="how" id="connectForm" autocomplete="off">
+      <strong>Подключить кабинет</strong>
+      <ol>
+        <li>В кабинете Ozon откройте настройки и раздел с API-ключами.</li>
+        <li>Создайте ключ с ролью только для чтения и скопируйте Client-Id и сам ключ.</li>
+        <li>Вставьте их ниже.</li>
+      </ol>
+      <label class="fld">Client-Id<input id="cId" inputmode="numeric" required maxlength="40" placeholder="например, 1234567"></label>
+      <label class="fld">API-ключ<input id="cKey" type="password" required maxlength="200" placeholder="ключ из кабинета"></label>
+      <button type="submit" class="cta" id="cBtn">Подключить</button>
+      <p class="formerr" id="cErr" role="alert" hidden></p>
+      <span class="note">Ключ «только на чтение» не даёт доступа к деньгам, реквизитам и товарам. Он хранится на сервере в зашифрованном виде, и его можно отозвать в кабинете в любой момент. Не присылайте ключ в переписке.</span>
+    </form>
+  </section>
+
+  <footer class="foot">
+    <div class="contact">
+      <strong>Нужны дополнительные показатели? Свяжитесь со мной</strong>
+      <a class="tg-link" href="https://t.me/@@TG_USERNAME@@" target="_blank" rel="noopener">Telegram: <span class="tg-handle">@@@TG_USERNAME@@</span></a>
+    </div>
+    <p>Как считается: «Ozon перечислит» — сумма всех строк отчёта. Налог берётся от цены продажи (реализации). Себестоимость вычитается только у выкупленных заказов. Невыкуп — заказ с обратной логистикой без продажи; «в пути» — заказ, по которому пока списан только эквайринг или доставка.</p>
+    <p>Неофициальный инструмент, не связан с Ozon. Расчёт ориентировочный и не заменяет бухгалтерию.</p>
+  </footer>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script>
+// ===== core: Ozon accruals report -> postings =====
+const OZ = (() => {
+  const norm = (s) => String(s == null ? '' : s).trim().toLowerCase().replace(/ё/g, 'е');
+  const num = (v) => { if (typeof v === 'number') return v; const n = parseFloat(String(v == null ? '' : v).replace(/\s| /g, '').replace(',', '.')); return isNaN(n) ? 0 : n; };
+  const r2 = (x) => Math.round(x * 100) / 100;
+  function toISO(v) {
+    if (v instanceof Date && !isNaN(v)) return v.toISOString().slice(0, 10);
+    if (typeof v === 'number' || /^\d+(\.\d+)?$/.test(String(v).trim())) return new Date(Date.UTC(1899, 11, 30) + Math.floor(num(v)) * 86400000).toISOString().slice(0, 10);
+    const s = String(v || '').trim();
+    let m = s.match(/^(\d{2})\.(\d{2})\.(\d{4})/); if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    return '';
+  }
+  const COLS = { id: ['id начисления', 'номер отправления'], date: ['дата начисления'], group: ['группа услуг'], type: ['тип начисления'], article: ['артикул'], name: ['название товара'], qty: ['количество'], amount: ['сумма итого, руб.', 'сумма итого', 'сумма'] };
+  function locate(rows) {
+    for (let i = 0; i < Math.min(rows.length, 30); i++) {
+      const h = (rows[i] || []).map(norm); const idx = {};
+      for (const [k, names] of Object.entries(COLS)) { idx[k] = h.findIndex((c) => names.includes(c)); if (idx[k] < 0 && k === 'amount') idx[k] = h.findIndex((c) => c.startsWith('сумма')); }
+      if (idx.id >= 0 && idx.type >= 0 && idx.amount >= 0 && idx.group >= 0) return { headerRow: i, idx };
+    }
+    return null;
+  }
+  function bucket(group, type) {
+    const g = norm(group), t = norm(type);
+    if (g === 'продажи') return 'rz';
+    if (g === 'возвраты') return 'rzNeg';
+    if (g.startsWith('вознаграждение')) return 'fee';
+    if (t.includes('эквайринг')) return 'acq';
+    if (t.includes('обратная логистика') || (t.includes('обработка') && (t.includes('возврат') || t.includes('невыкуп') || t.includes('отмен')))) return 'rlog';
+    if (g.includes('реклам') || g.includes('продвиж') || g.includes('маркетинг')) return 'ads';
+    if (g === 'услуги доставки' || t === 'логистика' || t.includes('силами ozon')) return 'log';
+    if (g.includes('штраф') || t.includes('штраф') || t.includes('утилизац') || t.includes('жалоб')) return 'fine';
+    return 'svc';
+  }
+  const postingKey = (id) => { const s = String(id || '').trim(); const p = s.split('-'); return p.length >= 3 ? p.slice(0, 2).join('-') : s; };
+  function parseReport(rows) {
+    const loc = locate(rows);
+    if (!loc) return { error: 'В файле нет столбцов «ID начисления», «Группа услуг», «Тип начисления» и «Сумма итого». Нужен отчёт из раздела Детализация начислений → Скачать отчёт → По начислениям.' };
+    const { headerRow, idx } = loc; let period = '';
+    for (let i = 0; i < headerRow; i++) { const c = (rows[i] || []).map(String).join(' '); if (/период/i.test(c)) period = c.replace(/^.*?период:\s*/i, '').trim(); }
+    const lines = [];
+    for (let i = headerRow + 1; i < rows.length; i++) {
+      const r = rows[i] || []; const id = String(r[idx.id] == null ? '' : r[idx.id]).trim(); const type = r[idx.type];
+      if (!id && !type) continue;
+      lines.push({ id, posting: postingKey(id), date: toISO(r[idx.date]), group: String(r[idx.group] || ''), type: String(type || ''),
+        article: idx.article >= 0 ? String(r[idx.article] == null ? '' : r[idx.article]).trim() : '',
+        name: idx.name >= 0 ? String(r[idx.name] || '').trim() : '', qty: idx.qty >= 0 ? num(r[idx.qty]) : 0, amount: num(r[idx.amount]) });
+    }
+    return { lines, period };
+  }
+  function mergeReports(reports) {
+    const seen = new Map(); const out = [];
+    for (const rep of reports) {
+      const local = new Map();
+      for (const l of rep.lines) {
+        const k = [l.id, l.date, l.type, l.amount, l.article].join('|');
+        const n = (local.get(k) || 0) + 1; local.set(k, n);
+        if (n > (seen.get(k) || 0)) { seen.set(k, n); out.push(l); }
+      }
+    }
+    return out;
+  }
+  function toPostings(lines) {
+    const P = new Map();
+    for (const l of lines) {
+      const k = l.posting + '|' + (l.article || '-'); let x = P.get(k);
+      if (!x) { x = { posting: l.posting, article: l.article || '-', name: l.name, date: l.date, saleDate: '', qty: 0, rz: 0, rzNeg: 0, fee: 0, log: 0, rlog: 0, acq: 0, svc: 0, ads: 0, fine: 0 }; P.set(k, x); }
+      if (!x.name && l.name) x.name = l.name;
+      if (l.date > x.date) x.date = l.date;
+      const b = l.bucket || bucket(l.group, l.type);
+      const isRevenue = l.revenue != null ? l.revenue : /выручка/i.test(l.type);
+      if (b === 'rz') { x.rz += l.amount; if (isRevenue && l.amount > 0) { x.qty += l.qty || 1; if (l.date > x.saleDate) x.saleDate = l.date; } }
+      else x[b] += l.amount;
+    }
+    const out = [];
+    for (const x of P.values()) {
+      for (const f of ['rz', 'rzNeg', 'fee', 'log', 'rlog', 'acq', 'svc', 'ads', 'fine']) x[f] = r2(x[f]);
+      const unit = x.qty ? x.rz / x.qty : 0; const retQty = unit ? Math.round(-x.rzNeg / unit) : 0; const netQty = Math.max(0, x.qty - retQty);
+      let status;
+      if (x.article === '-') status = 'Штраф';
+      else if (x.qty > 0 && netQty > 0) status = 'Продажа';
+      else if (x.qty > 0) status = 'Возврат';
+      else if (x.rlog < 0) status = 'Невыкуп';
+      else if (x.log < 0) status = 'В пути';
+      else if (x.svc < 0 || x.fine < 0 || x.ads < 0) status = 'Утилизация';
+      else status = 'В пути';
+      const realization = r2(x.rz + x.rzNeg); const fees = r2(x.fee + x.log + x.rlog + x.acq + x.svc + x.ads + x.fine);
+      out.push({ posting: x.posting, article: x.article, name: x.name, date: x.saleDate || x.date, status, qty: netQty, realization, fees,
+        commission: x.fee, logistics: x.log, return_logistics: x.rlog, acquiring: x.acq, services: x.svc, ads: x.ads, fines: x.fine, payout: r2(realization + fees) });
+    }
+    return out;
+  }
+  function withProfit(postings, costs, taxRate) {
+    return postings.map((p) => {
+      const c = costs[p.article]; const known = c != null && c !== '' && !isNaN(+c);
+      const cost = p.status === 'Продажа' && known ? r2(+c * p.qty) : 0;
+      const tax = r2(Math.max(0, p.realization) * taxRate);
+      return Object.assign({}, p, { tax, cost, cost_known: known, profit: r2(p.payout - tax - cost) });
+    });
+  }
+  const isLost = (p) => p.status === 'Невыкуп' || p.status === 'Возврат';
+  const byDateDesc = (x, y) => (x.date < y.date ? 1 : x.date > y.date ? -1 : 0);
+  function products(rows, names) {
+    const by = {};
+    rows.filter((p) => p.article !== '-').forEach((p) => { (by[p.article] = by[p.article] || []).push(p); });
+    return Object.keys(by).map((a) => {
+      const list = by[a]; const sold = list.filter((p) => p.status === 'Продажа').sort(byDateDesc); const lost = list.filter(isLost);
+      const last = sold[0] || null; const b = sold.length + lost.length ? sold.length / (sold.length + lost.length) : null;
+      const avgLoss = lost.length ? -lost.reduce((t, p) => t + p.payout, 0) / lost.length : 0;
+      const adj = last && b ? r2(last.profit / last.qty - avgLoss * (1 - b) / b) : null;
+      return { article: a, name: names[a] || (list.find((p) => p.name) || {}).name || 'Артикул ' + a, list, last, sales: sold.length, lost: lost.length,
+        buyout: b, avgLoss: r2(avgLoss), adj, total: r2(list.reduce((t, p) => t + p.profit, 0)), cost_known: list[0].cost_known };
+    }).sort((x, y) => y.total - x.total);
+  }
+  function totals(rows) {
+    const s = (k) => r2(rows.reduce((t, p) => t + p[k], 0));
+    const sold = rows.filter((p) => p.status === 'Продажа'); const lost = rows.filter(isLost).length;
+    return { realization: s('realization'), payout: s('payout'), tax: s('tax'), cost: s('cost'), profit: s('profit'),
+      sales: sold.length, lost, buyout: sold.length + lost ? sold.length / (sold.length + lost) : null,
+      noCost: sold.filter((p) => !p.cost_known).length };
+  }
+  return { parseReport, mergeReports, toPostings, withProfit, products, totals, r2, byDateDesc };
+})();
+
+// ===== reading files =====
+// Ozon's .xlsx often has no cell addresses (no r="A1"), which libraries misread,
+// so our own positional reader goes first; SheetJS only for .xls/.csv or as a backup.
+// Returns every sheet as rows (array of arrays).
+async function readSheets(file) {
+  const buf = await file.arrayBuffer();
+  const bytes = new Uint8Array(buf);
+  const isZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
+  if (isZip) {
+    try { const sh = await xlsxSheets(bytes); if (sh.length) return sh; } catch (e) { /* try the library below */ }
+  }
+  if (window.XLSX) {
+    const wb = XLSX.read(buf, { type: 'array' });
+    return wb.SheetNames.map((n) => XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: '' }));
+  }
+  throw new Error('unsupported');
+}
+async function xlsxSheets(bin) {
+  const dv = new DataView(bin.buffer, bin.byteOffset, bin.byteLength);
+  let e = bin.length - 22; while (e > 0 && dv.getUint32(e, true) !== 0x06054b50) e--;
+  if (e <= 0) throw new Error('not a zip');
+  const n = dv.getUint16(e + 10, true); let p = dv.getUint32(e + 16, true); const files = {};
+  for (let i = 0; i < n; i++) {
+    const meth = dv.getUint16(p + 10, true), csz = dv.getUint32(p + 20, true), nl = dv.getUint16(p + 28, true), el = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), off = dv.getUint32(p + 42, true);
+    files[new TextDecoder().decode(bin.subarray(p + 46, p + 46 + nl))] = { meth, csz, off }; p += 46 + nl + el + cl;
+  }
+  const read = async (name) => {
+    const f = files[name]; if (!f) return '';
+    const ln = dv.getUint16(f.off + 26, true), le = dv.getUint16(f.off + 28, true);
+    const data = bin.subarray(f.off + 30 + ln + le, f.off + 30 + ln + le + f.csz);
+    if (f.meth === 0) return new TextDecoder().decode(data);
+    return new Response(new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate-raw'))).text();
+  };
+  const dp = new DOMParser();
+  const S = [...dp.parseFromString(await read('xl/sharedStrings.xml') || '<a/>', 'application/xml').getElementsByTagName('si')].map((si) => [...si.getElementsByTagName('t')].map((t) => t.textContent).join(''));
+  const colIdx = (ref) => { const m = /^([A-Z]+)/.exec(ref || ''); if (!m) return -1; let k = 0; for (const ch of m[1]) k = k * 26 + ch.charCodeAt(0) - 64; return k - 1; };
+  const sheets = Object.keys(files).filter((f) => /^xl\/worksheets\/sheet\d+\.xml$/.test(f))
+    .sort((x, y) => +x.match(/(\d+)\.xml$/)[1] - +y.match(/(\d+)\.xml$/)[1]);
+  const out = [];
+  for (const sh of sheets) {
+    const x = dp.parseFromString(await read(sh), 'application/xml');
+    out.push([...x.getElementsByTagName('row')].map((r) => {
+      const row = []; let pos = 0;
+      for (const c of r.getElementsByTagName('c')) {
+        const ci = colIdx(c.getAttribute('r')); if (ci >= 0) pos = ci;
+        const t = c.getAttribute('t'); const v = c.getElementsByTagName('v')[0]; const is = c.getElementsByTagName('t')[0];
+        const val = v ? v.textContent : is ? is.textContent : '';
+        while (row.length < pos) row.push('');
+        row[pos++] = t === 's' ? S[+val] : val;
+      }
+      return row;
+    }));
+  }
+  return out;
+}
+// Ozon «Товары и цены» (Цены → Скачать шаблон xlsx): columns «Артикул» and «Себестоимость»
+function parseCosts(rows) {
+  const norm = (s) => String(s == null ? '' : s).trim().toLowerCase().replace(/ё/g, 'е');
+  for (let i = 0; i < Math.min(rows.length, 30); i++) {
+    const h = (rows[i] || []).map(norm);
+    const a = h.indexOf('артикул'), c = h.indexOf('себестоимость');
+    if (a < 0 || c < 0) continue;
+    const out = {};
+    for (let j = i + 1; j < rows.length; j++) {
+      const r = rows[j] || []; const art = String(r[a] == null ? '' : r[a]).trim();
+      const v = parseFloat(String(r[c] == null ? '' : r[c]).replace(/\s| /g, '').replace(',', '.'));
+      if (art && !isNaN(v) && v > 0) out[art] = v;
+    }
+    return out;
+  }
+  return null;
+}
+
+// ===== example data (invented products, shown before a report is loaded) =====
+function demoLines() {
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const P = [
+    { a: 'demo-1', n: 'Термокружка 450 мл, нержавеющая сталь', price: 1290, fee: 0.27, log: [95, 140], buy: 0.9, perDay: 1.1 },
+    { a: 'demo-2', n: 'Органайзер для проводов, 10 шт.', price: 249, fee: 0.21, log: [18, 26], buy: 0.95, perDay: 1.6 },
+    { a: 'demo-3', n: 'Набор кистей для макияжа, 12 шт.', price: 890, fee: 0.35, log: [80, 120], buy: 0.74, perDay: 0.9 },
+  ];
+  const lines = []; let k = 1000;
+  const day = (i) => new Date(Date.UTC(2026, 8, 1 + i)).toISOString().slice(0, 10);
+  for (let d = 0; d < 45; d++) for (const p of P) {
+    let n = Math.floor(p.perDay + rnd() * 1.5 - 0.5);
+    while (n-- > 0) {
+      const id = `${100000 + k++}-${String(Math.floor(rnd() * 900) + 100)}`; const L = Math.round(p.log[0] + rnd() * (p.log[1] - p.log[0]));
+      const base = { posting: id, date: day(d), article: p.a, name: p.n, qty: 1 };
+      const add = (group, type, amount) => lines.push(Object.assign({ id: id + '-1', group, type, amount: OZ.r2(amount) }, base));
+      if (rnd() < p.buy) {
+        add('Продажи', 'Выручка', p.price); add('Вознаграждение Ozon', 'Вознаграждение за продажу', -p.price * p.fee);
+        add('Услуги доставки', 'Логистика', -L); add('Услуги партнёров', 'Эквайринг', -p.price * 0.011);
+        add('Услуги партнёров', 'Обработка отправления Drop-off партнёрами (ПВЗ)', -10); add('Услуги партнёров', 'Доставка до места выдачи', -(6 + rnd() * 8));
+      } else {
+        add('Услуги доставки', 'Логистика', -L); add('Услуги доставки', 'Обратная логистика', -Math.round(L * 0.85));
+        add('Услуги партнёров', 'Обработка отправления Drop-off партнёрами (ПВЗ)', -10);
+      }
+    }
+  }
+  return lines;
+}
+const DEMO_COSTS = { 'demo-1': 420, 'demo-2': 62, 'demo-3': 310 };
+
+// ===== state =====
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } },
+};
+const API_TOKEN = (location.pathname.match(/^\/d\/([A-Za-z0-9_-]{20,})/) || [])[1] || null;
+const S = {
+  demo: !API_TOKEN,
+  api: null,            // data from /api/data when connected
+  apiCosts: {},
+  costFile: null,
+  reports: [],          // {name, period, lines}
+  postings: [],
+  names: {},
+  costs: store.get('ozp.costs', {}),
+  tax: store.get('ozp.tax', '0.04'),
+  taxCustom: store.get('ozp.taxCustom', 4),
+  from: null, to: null, minDate: null, maxDate: null,
+  open: new Set(),
+};
+
+function rebuild() {
+  const lines = S.demo ? demoLines() : API_TOKEN ? (S.api ? S.api.lines : []) : OZ.mergeReports(S.reports);
+  S.postings = OZ.toPostings(lines);
+  S.names = {};
+  S.postings.forEach((p) => { if (p.name && !S.names[p.article]) S.names[p.article] = p.name; });
+  const ds = S.postings.map((p) => p.date).filter(Boolean).sort();
+  S.minDate = ds[0] || null; S.maxDate = ds[ds.length - 1] || null;
+  S.from = null; S.to = null; S.open.clear();
+  render();
+}
+
+// ===== formatting =====
+const fRub = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', minimumFractionDigits: 0, maximumFractionDigits: 2 });
+const fRub0 = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 });
+const fPct = new Intl.NumberFormat('ru-RU', { style: 'percent', maximumFractionDigits: 0 });
+const fPct1 = new Intl.NumberFormat('ru-RU', { style: 'percent', maximumFractionDigits: 1 });
+const money = (v) => (v == null || isNaN(v) ? '—' : fRub.format(v));
+const dt = (d) => (d ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : '—');
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const tdMoney = (v, signed) => el('td', signed && v != null ? (v < 0 ? 'neg' : 'pos') : '', money(v));
+const shift = (d, n) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() - n); return x.toISOString().slice(0, 10); };
+const taxRate = () => (S.tax === 'custom' ? Math.max(0, +S.taxCustom || 0) / 100 : parseFloat(S.tax));
+const costMap = () => (S.demo ? DEMO_COSTS : API_TOKEN ? Object.assign({}, S.apiCosts, S.costs) : S.costs);
+
+// ===== fee tooltip =====
+const PARTS = [['commission', 'Комиссия Ozon'], ['logistics', 'Логистика до покупателя'], ['return_logistics', 'Обратная логистика и невыкупы'],
+  ['services', 'Приём заказа, курьер, упаковка'], ['acquiring', 'Эквайринг'], ['ads', 'Реклама и продвижение'], ['fines', 'Штрафы и утилизация']];
+const feeInfo = new WeakMap();
+const tip = document.getElementById('tip');
+const ledger = document.getElementById('ledger');
+function feeCell(p, div, title) {
+  if (!p) return tdMoney(null);
+  const td = el('td', 'fees'); td.tabIndex = 0;
+  td.appendChild(el('span', '', money(OZ.r2(p.fees / div))));
+  feeInfo.set(td, { p, div, title }); return td;
+}
+function showTip(td) {
+  const info = feeInfo.get(td); if (!info) return;
+  const { p, div, title } = info; const price = p.realization / div;
+  tip.replaceChildren(el('div', 't', title));
+  PARTS.forEach(([k, label]) => {
+    const v = OZ.r2((p[k] || 0) / div); if (!v) return;
+    const r = el('div', 'r'); r.appendChild(el('span', '', label));
+    r.appendChild(el('span', '', money(v) + (k === 'commission' && price > 0 ? ' · ' + fPct1.format(-v / price) : ''))); tip.appendChild(r);
+  });
+  const s = el('div', 'r sum'); s.appendChild(el('span', '', 'Итого'));
+  s.appendChild(el('span', '', money(OZ.r2(p.fees / div)) + (price > 0 ? ' · ' + fPct.format(-p.fees / p.realization) + ' цены' : ''))); tip.appendChild(s);
+  tip.hidden = false;
+  const rb = ledger.getBoundingClientRect(), cb = td.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.max(8, Math.min(cb.left - rb.left + cb.width / 2 - w / 2, ledger.clientWidth - w - 8)) + 'px';
+  let top = cb.bottom - rb.top + 6;
+  if (cb.bottom + h + 12 > window.innerHeight && cb.top - rb.top - h - 6 > 0) top = cb.top - rb.top - h - 6;
+  tip.style.top = top + 'px';
+}
+const hideTip = () => { tip.hidden = true; };
+ledger.addEventListener('mouseover', (e) => { const td = e.target.closest('td.fees'); if (td) showTip(td); });
+ledger.addEventListener('mouseout', (e) => { const td = e.target.closest('td.fees'); if (td && !td.contains(e.relatedTarget)) hideTip(); });
+ledger.addEventListener('focusin', (e) => { const td = e.target.closest('td.fees'); if (td) showTip(td); });
+ledger.addEventListener('focusout', (e) => { if (e.target.closest('td.fees')) hideTip(); });
+
+// ===== render =====
+const tbody = document.querySelector('#tbl tbody');
+const statusCls = { 'Продажа': 'sale', 'Невыкуп': 'bad', 'Возврат': 'bad', 'Утилизация': 'bad', 'Штраф': 'bad' };
+
+function orderTable(list) {
+  const box = el('div', 'detbox'); const t = el('table'); const hr = el('tr');
+  ['Отправление', 'Дата', 'Статус', 'Шт.', 'Цена', 'Расходы Ozon', 'К выплате', 'Налог', 'Себестоимость', 'Прибыль'].forEach((h) => hr.appendChild(el('th', '', h)));
+  const th = el('thead'); th.appendChild(hr); t.appendChild(th);
+  const tb = el('tbody');
+  list.slice().sort(OZ.byDateDesc).forEach((p) => {
+    const tr = el('tr');
+    tr.appendChild(el('td', '', p.posting)); tr.appendChild(el('td', '', dt(p.date)));
+    const st = el('td'); st.appendChild(el('span', 'tag ' + (statusCls[p.status] || ''), p.status)); tr.appendChild(st);
+    tr.appendChild(el('td', '', String(p.qty))); tr.appendChild(tdMoney(p.realization));
+    tr.appendChild(feeCell(p, 1, 'Заказ ' + p.posting + (p.qty > 1 ? ', ' + p.qty + ' шт.' : '')));
+    tr.appendChild(tdMoney(p.payout)); tr.appendChild(tdMoney(p.tax));
+    tr.appendChild(el('td', '', p.status === 'Продажа' && !p.cost_known ? 'не указана' : money(p.cost)));
+    tr.appendChild(tdMoney(p.profit, true)); tb.appendChild(tr);
+  });
+  t.appendChild(tb); box.appendChild(t); return box;
+}
+
+function render() {
+  hideTip();
+  const all = OZ.withProfit(S.postings, costMap(), taxRate());
+  const rows = all.filter((p) => (!S.from || p.date >= S.from) && (!S.to || p.date <= S.to));
+  // controls
+  document.getElementById('demo').hidden = !S.demo;
+  document.body.classList.toggle('mode-api', !!API_TOKEN);
+  const from = document.getElementById('from'), to = document.getElementById('to');
+  [from, to].forEach((i) => { i.min = S.minDate || ''; i.max = S.maxDate || ''; });
+  if (from !== document.activeElement) from.value = S.from || S.minDate || '';
+  if (to !== document.activeElement) to.value = S.to || S.maxDate || '';
+  document.querySelectorAll('.seg button').forEach((b) => {
+    const d = b.dataset.days;
+    const on = d === 'all' ? !S.from && !S.to : !!S.maxDate && S.from === shift(S.maxDate, +d - 1) && (!S.to || S.to === S.maxDate);
+    b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+  // totals
+  const T = OZ.totals(rows);
+  const set = (k, v) => { document.querySelector(`#kpis [data-k="${k}"]`).textContent = v; };
+  set('profit', fRub0.format(T.profit));
+  set('margin', T.realization > 0 ? `${fPct1.format(T.profit / T.realization)} от продаж на ${fRub0.format(T.realization)}` : '');
+  set('payout', fRub0.format(T.payout)); set('realization', `${T.sales} продаж за период`);
+  set('tax', fRub0.format(T.tax)); set('cost', fRub0.format(T.cost));
+  set('costnote', T.noCost ? `не указана у ${T.noCost} продаж` : '');
+  set('buyout', T.buyout == null ? '—' : fPct.format(T.buyout)); set('buyoutnote', `${T.lost} невыкупов и возвратов`);
+  // ledger
+  tbody.replaceChildren();
+  const prods = OZ.products(rows, S.names);
+  if (!prods.length) { const tr = el('tr'); const td = el('td', 'muted', 'За этот период заказов нет.'); td.colSpan = 10; tr.appendChild(td); tbody.appendChild(tr); return; }
+  prods.forEach((r) => {
+    const L = r.last; const per = (k) => (L ? OZ.r2(L[k] / L.qty) : null);
+    const tr = el('tr', 'prod' + (S.open.has(r.article) ? ' open' : '')); tr.dataset.article = r.article;
+    const n = el('td'); const w = el('div', 'pname'); w.appendChild(el('span', 'caret', '›'));
+    const nm = el('div'); nm.appendChild(el('div', '', r.name));
+    nm.appendChild(el('div', 'sub', (r.article.startsWith('demo') ? 'пример' : 'арт. ' + r.article) + ` · ${r.sales} продаж · итого ${fRub0.format(r.total)}` + (L && L.qty > 1 ? ` · в последнем заказе ${L.qty} шт.` : '')));
+    w.appendChild(nm); n.appendChild(w); tr.appendChild(n);
+    tr.appendChild(el('td', '', L ? dt(L.date) : 'нет продаж'));
+    tr.appendChild(tdMoney(per('realization')));
+    tr.appendChild(feeCell(L, L ? L.qty : 1, L ? `Последняя продажа ${dt(L.date)}` + (L.qty > 1 ? ', на 1 шт.' : '') : ''));
+    tr.appendChild(tdMoney(per('payout'))); tr.appendChild(tdMoney(per('tax')));
+    const ct = el('td'); const inp = el('input', 'costin' + (r.cost_known ? '' : ' missing'));
+    inp.type = 'number'; inp.min = '0'; inp.step = '1'; inp.inputMode = 'decimal'; inp.placeholder = 'введите';
+    inp.id = 'cost-' + r.article; inp.dataset.article = r.article; inp.setAttribute('aria-label', 'Себестоимость за штуку: ' + r.name);
+    const cm = costMap(); if (cm[r.article] != null && cm[r.article] !== '') inp.value = cm[r.article];
+    ct.appendChild(inp); tr.appendChild(ct);
+    tr.appendChild(tdMoney(r.cost_known ? per('profit') : null, true));
+    const bt = el('td'); const bs = el('div', 'stack');
+    bs.appendChild(el('b', '', r.buyout == null ? '—' : fPct.format(r.buyout))); bs.appendChild(el('span', 'sub', `${r.sales} из ${r.sales + r.lost}`));
+    bt.appendChild(bs); tr.appendChild(bt);
+    const at = el('td');
+    if (L && r.adj != null && r.cost_known) {
+      const as = el('div', 'stack'); const price = L.realization / L.qty;
+      as.appendChild(el('b', r.adj < 0 ? 'neg' : 'pos', fRub.format(r.adj) + (price > 0 ? ` (${fPct1.format(r.adj / price)})` : '')));
+      as.appendChild(el('span', 'sub', r.lost ? `− ${fRub0.format(r.avgLoss)} × ${r.lost}/${r.sales} невыкупов` : 'невыкупов не было'));
+      at.appendChild(as);
+    } else at.appendChild(el('span', 'sub', L ? 'нужна себестоимость' : '—'));
+    tr.appendChild(at);
+    tbody.appendChild(tr);
+    if (S.open.has(r.article)) { const d = el('tr', 'det'); const td = el('td'); td.colSpan = 10; td.appendChild(orderTable(r.list)); d.appendChild(td); tbody.appendChild(d); }
+  });
+}
+
+// ===== events =====
+tbody.addEventListener('click', (e) => {
+  if (e.target.closest('input')) return;
+  const tr = e.target.closest('tr.prod'); if (!tr) return;
+  const a = tr.dataset.article; S.open.has(a) ? S.open.delete(a) : S.open.add(a); render();
+});
+tbody.addEventListener('change', (e) => {
+  const inp = e.target.closest('input.costin'); if (!inp) return;
+  const a = inp.dataset.article; const v = inp.value.trim();
+  const m = S.demo ? DEMO_COSTS : S.costs;
+  if (v === '' || isNaN(+v)) delete m[a]; else if (API_TOKEN && S.apiCosts[a] === +v) delete m[a]; else m[a] = +v;
+  if (!S.demo) store.set('ozp.costs', S.costs);
+  render();
+  const again = document.getElementById('cost-' + a); if (again) { /* keep the field in view after re-render */ again.scrollIntoView({ block: 'nearest' }); }
+});
+const taxSel = document.getElementById('tax'), taxCustom = document.getElementById('taxCustom'), customWrap = document.getElementById('customWrap');
+taxSel.value = S.tax; taxCustom.value = S.taxCustom; customWrap.hidden = S.tax !== 'custom';
+taxSel.addEventListener('change', () => { S.tax = taxSel.value; store.set('ozp.tax', S.tax); customWrap.hidden = S.tax !== 'custom'; render(); });
+taxCustom.addEventListener('input', () => { S.taxCustom = taxCustom.value; store.set('ozp.taxCustom', S.taxCustom); render(); });
+const fromEl = document.getElementById('from'), toEl = document.getElementById('to');
+fromEl.addEventListener('change', () => { if (fromEl.value && fromEl.validity.valid) { S.from = fromEl.value; render(); } });
+toEl.addEventListener('change', () => { if (toEl.value && toEl.validity.valid) { S.to = toEl.value; render(); } });
+[fromEl, toEl].forEach((i) => i.addEventListener('blur', render));
+document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => {
+  const d = b.dataset.days;
+  if (d === 'all' || !S.maxDate) { S.from = null; S.to = null; } else { S.from = shift(S.maxDate, +d - 1); S.to = S.maxDate; }
+  render();
+}));
+
+// ===== upload =====
+const drop = document.getElementById('drop'), fileIn = document.getElementById('file'), errEl = document.getElementById('err'), filesEl = document.getElementById('files');
+function showError(msg) { errEl.textContent = msg; errEl.hidden = !msg; }
+function renderFiles() {
+  filesEl.replaceChildren(); filesEl.hidden = !S.reports.length && !S.costFile;
+  if (S.costFile) {
+    const c = el('span', 'chipfile', `Себестоимость из Ozon: ${S.costFile.count} товаров`);
+    const x = el('button', '', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Скрыть отметку о себестоимости');
+    x.addEventListener('click', () => { S.costFile = null; renderFiles(); });
+    c.appendChild(x); filesEl.appendChild(c);
+  }
+  S.reports.forEach((r, i) => {
+    const c = el('span', 'chipfile', `${r.period || r.name} · ${r.lines.length} строк`);
+    const x = el('button', '', '×'); x.type = 'button'; x.setAttribute('aria-label', 'Убрать файл ' + r.name);
+    x.addEventListener('click', () => { S.reports.splice(i, 1); S.demo = !S.reports.length; renderFiles(); rebuild(); });
+    c.appendChild(x); filesEl.appendChild(c);
+  });
+}
+async function addFiles(list) {
+  showError('');
+  const bad = [];
+  let gotReport = false;
+  for (const f of list) {
+    try {
+      const sheets = await readSheets(f);
+      let rep = null, costs = null;
+      for (const rows of sheets) { const r = OZ.parseReport(rows); if (!r.error) { rep = r; break; } }
+      if (!rep) for (const rows of sheets) { const c = parseCosts(rows); if (c) { costs = c; break; } }
+      if (rep) {
+        if (!rep.lines.length) { bad.push(`«${f.name}»: в отчёте нет начислений за этот период.`); continue; }
+        S.reports.push({ name: f.name, period: rep.period, lines: rep.lines }); gotReport = true;
+      } else if (costs) {
+        const n = Object.keys(costs).length;
+        if (!n) { bad.push(`«${f.name}»: в столбце «Себестоимость» пусто. Заполните себестоимость в кабинете или прямо в таблице ниже.`); continue; }
+        Object.assign(S.costs, costs); store.set('ozp.costs', S.costs);
+        S.costFile = { name: f.name, count: n };
+      } else {
+        bad.push(`«${f.name}»: это не отчёт о начислениях и не файл «Товары и цены». Нужен отчёт из раздела Детализация начислений → Скачать отчёт → По начислениям.`);
+      }
+    } catch (e) { bad.push(`«${f.name}» не удалось прочитать. Загрузите файл .xlsx в том виде, в каком его скачал кабинет.`); }
+  }
+  if (bad.length) showError(bad.join(' '));
+  if (S.reports.length) S.demo = false;
+  renderFiles();
+  if (gotReport) rebuild(); else render();
+}
+fileIn.addEventListener('change', () => { if (fileIn.files.length) addFiles([...fileIn.files]); fileIn.value = ''; });
+['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', (e) => { const fl = [...(e.dataTransfer?.files || [])]; if (fl.length) addFiles(fl); });
+window.addEventListener('dragover', (e) => e.preventDefault());
+window.addEventListener('drop', (e) => { if (!drop.contains(e.target)) { e.preventDefault(); const fl = [...(e.dataTransfer?.files || [])]; if (fl.length) addFiles(fl); } });
+
+// ===== Telegram contact (filled in by the server) =====
+// if the server has no TG_USERNAME set, the contact line is hidden instead of showing a broken link
+document.querySelectorAll('.tg-link').forEach((a) => { if (/@@|t\.me\/$/.test(a.getAttribute('href'))) a.closest('.contact').hidden = true; });
+
+// ===== connect by API =====
+const form = document.getElementById('connectForm');
+const cErr = document.getElementById('cErr');
+form.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  cErr.hidden = true;
+  const btn = document.getElementById('cBtn');
+  btn.disabled = true; btn.textContent = 'Проверяю ключ…';
+  try {
+    const r = await fetch('/api/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: document.getElementById('cId').value.trim(), api_key: document.getElementById('cKey').value.trim() }) });
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'Не удалось подключиться. Проверьте Client-Id и ключ.');
+    location.href = '/d/' + j.token;
+  } catch (err) {
+    cErr.textContent = err.message === 'Failed to fetch' ? 'Сервер не отвечает. Попробуйте ещё раз.' : err.message; cErr.hidden = false;
+    btn.disabled = false; btn.textContent = 'Подключить';
+  }
+});
+
+// ===== API mode: personal dashboard at /d/<token> =====
+async function loadApi(refresh) {
+  const bar = document.getElementById('apibar'), st = document.getElementById('apiStatus'), meta = document.getElementById('apiMeta'), err = document.getElementById('apiErr');
+  bar.hidden = false; err.hidden = true;
+  st.textContent = S.api ? 'Обновляю данные из Ozon…' : 'Загружаю данные из Ozon… В первый раз это может занять до минуты.';
+  document.getElementById('ledger').classList.add('loading');
+  try {
+    const r = await fetch(`/api/data/${API_TOKEN}${refresh ? '?refresh=1' : ''}`);
+    const j = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'Не удалось получить данные из Ozon.');
+    S.api = j; S.apiCosts = j.costs || {};
+    const at = new Date(j.fetched_at);
+    st.textContent = 'Кабинет подключён по API';
+    meta.textContent = `Данные на ${at.toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })} · период ${dt(j.period[0])} — ${dt(j.period[1])}`;
+    if (j.warning) { err.textContent = 'Показаны прошлые данные: ' + j.warning; err.hidden = false; }
+    rebuild();
+  } catch (e) {
+    st.textContent = 'Данные не загрузились';
+    err.textContent = e.message; err.hidden = false;
+  } finally {
+    document.getElementById('ledger').classList.remove('loading');
+  }
+}
+if (API_TOKEN) {
+  document.querySelector('.upload').hidden = true;
+  document.getElementById('api').hidden = true;
+  document.querySelector('.lede').textContent = 'Ваш кабинет подключён по API: чистая прибыль по каждому товару после комиссии, логистики, невыкупов, налога и себестоимости. Себестоимость подставляется из карточек Ozon, её можно поправить в таблице.';
+  document.getElementById('apiRefresh').addEventListener('click', () => loadApi(true));
+  const off = document.getElementById('apiOff');
+  off.addEventListener('click', async () => {
+    if (off.dataset.confirm !== '1') { off.dataset.confirm = '1'; off.textContent = 'Точно отключить? Нажмите ещё раз'; return; }
+    off.disabled = true;
+    await fetch('/api/connect/' + API_TOKEN, { method: 'DELETE' }).catch(() => {});
+    location.href = '/';
+  });
+  loadApi(false);
+}
+
+rebuild();
+</script>
+</body>
+</html>

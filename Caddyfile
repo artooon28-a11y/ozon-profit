@@ -1,0 +1,9 @@
+# Caddy получает и продлевает HTTPS-сертификат для домена сам.
+{$DOMAIN} {
+	encode gzip
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		-Server
+	}
+	reverse_proxy app:8000
+}
