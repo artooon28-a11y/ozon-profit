@@ -775,6 +775,13 @@ document.querySelectorAll('.tg-link').forEach((a) => { if (/@@|t\.me\/$/.test(a.
 // ===== connect by API =====
 const form = document.getElementById('connectForm');
 const cErr = document.getElementById('cErr');
+// Keys must never travel over plain HTTP: until the site has HTTPS the form is switched off.
+const insecure = location.protocol !== 'https:' && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+if (insecure) {
+  form.querySelectorAll('input, button').forEach((x) => { x.disabled = true; });
+  cErr.textContent = 'Подключение по API заработает, когда у сайта появится защищённое соединение (HTTPS). Пока пользуйтесь загрузкой файлов выше.';
+  cErr.hidden = false;
+}
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   cErr.hidden = true;
