@@ -1009,7 +1009,7 @@ async function loadApi(refresh) {
   try {
     const r = await fetch(`/api/data/${API_TOKEN}${refresh ? '?refresh=1' : ''}`);
     const j = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'Не удалось получить данные из Ozon.');
+    if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : `Не удалось получить данные из Ozon (ошибка сервера ${r.status}).`);
     S.api = j; S.apiCosts = j.costs || {};
     const at = new Date(j.fetched_at);
     st.textContent = 'Кабинет подключён по API';

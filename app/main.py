@@ -12,6 +12,7 @@ import asyncio
 import datetime as dt
 import hashlib
 import json
+import logging
 import os
 import secrets
 import sqlite3
@@ -34,6 +35,9 @@ MONTHS_BACK = int(os.environ.get("MONTHS_BACK", "3"))
 CACHE_HOURS = float(os.environ.get("CACHE_HOURS", "6"))
 MIN_REFRESH_SECONDS = 300
 INDEX = (Path(__file__).parent / "static" / "index.html").read_text(encoding="utf-8")
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+log = logging.getLogger("ozon-profit")
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -168,9 +172,16 @@ async def data(token: str, refresh: int = 0):
         try:
             fresh = await sync(token, client_id, api_key)
         except OzonError as e:
+            log.warning("sync failed: %s", e)
             if cache is not None:  # keep showing the last data, say why it is old
                 return JSONResponse(dict(cache, warning=str(e)), headers={"Cache-Control": "no-store"})
             raise HTTPException(502, str(e))
+        except Exception as e:  # unexpected answer from Ozon: log it and say what broke instead of a bare 500
+            log.exception("sync crashed")
+            msg = f"Не удалось обработать ответ Ozon ({type(e).__name__}: {str(e)[:200]}). Перешлите этот текст разработчику."
+            if cache is not None:
+                return JSONResponse(dict(cache, warning=msg), headers={"Cache-Control": "no-store"})
+            raise HTTPException(502, msg)
         return JSONResponse(fresh, headers={"Cache-Control": "no-store"})
 
 
