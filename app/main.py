@@ -23,6 +23,7 @@ from pathlib import Path
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from ozon import OzonClient, OzonError, to_lines
@@ -41,6 +42,7 @@ log = logging.getLogger("ozon-profit")
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+app.mount("/static/assets", StaticFiles(directory=Path(__file__).parent / "static" / "assets"), name="assets")
 
 
 # ---------- storage ----------

@@ -10,9 +10,7 @@
 <meta property="og:title" content="Сколько вы на самом деле зарабатываете на Ozon">
 <meta property="og:description" content="Чистая прибыль по каждому товару из отчёта о начислениях Ozon: комиссия, логистика, невыкупы, налог и себестоимость в одном расчёте.">
 <link rel="canonical" href="https://seller-profit.online/">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Unbounded:wght@500;600&display=swap">
+<link rel="stylesheet" href="/static/assets/fonts.css">
 <style>
   /* Layout: one working column — upload strip, settings, totals, product ledger with expandable orders */
   :root {
@@ -413,7 +411,7 @@
   </footer>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="/static/assets/xlsx.full.min.js" defer></script>
 <script>
 // ===== core: Ozon accruals report -> postings =====
 const OZ = (() => {
