@@ -304,6 +304,7 @@
       <table id="tbl">
         <thead><tr>
           <th>Товар</th>
+          <th>Сумма продаж</th>
           <th>Чистая прибыль<br>с учётом возвратов</th>
           <th class="c">Динамика прибыли</th>
           <th>Выкуп</th>
@@ -844,7 +845,7 @@ function render() {
   // ledger
   tbody.replaceChildren();
   const prods = OZ.products(rows, S.names);
-  if (!prods.length) { const tr = el('tr'); const td = el('td', 'muted', 'За этот период заказов нет.'); td.colSpan = 5; tr.appendChild(td); tbody.appendChild(tr); return; }
+  if (!prods.length) { const tr = el('tr'); const td = el('td', 'muted', 'За этот период заказов нет.'); td.colSpan = 6; tr.appendChild(td); tbody.appendChild(tr); return; }
   prods.forEach((r) => {
     const L = r.last; const per = (k) => (L ? OZ.r2(L[k] / L.qty) : null);
     const tr = el('tr', 'prod' + (S.open.has(r.article) ? ' open' : '')); tr.dataset.article = r.article;
@@ -852,13 +853,17 @@ function render() {
     const nm = el('div'); nm.appendChild(el('div', '', r.name));
     nm.appendChild(el('div', 'sub', (r.article.startsWith('demo') ? 'пример' : 'арт. ' + r.article) + ` · ${r.sales} продаж` + (L ? ` · последняя ${dt(L.date)}` : '')));
     w.appendChild(nm); n.appendChild(w); tr.appendChild(n);
+    const rev = r.list.reduce((t, p) => t + Math.max(0, p.realization), 0);
+    const units = r.list.filter((p) => p.status === 'Продажа').reduce((t, p) => t + (p.qty || 1), 0);
+    const rt = el('td'); const rs = el('div', 'stack');
+    rs.appendChild(el('b', 'pbig', fRub0.format(rev))); rs.appendChild(el('span', 'sub', `${units} шт.`));
+    rt.appendChild(rs); tr.appendChild(rt);
     // net profit for the product over the period, returns and non-buyouts included
     const pt = el('td'); const ps = el('div', 'stack');
-    const rev = r.list.reduce((t, p) => t + Math.max(0, p.realization), 0);
     const lossSum = r.list.filter((p) => p.status !== 'Продажа').reduce((t, p) => t + p.profit, 0);
     if (r.cost_known) {
       ps.appendChild(el('b', 'pbig ' + (r.total < 0 ? 'neg' : 'pos'), fRub0.format(r.total)));
-      if (rev > 0) ps.appendChild(el('span', 'sub', `${fPct1.format(r.total / rev)} от продаж на ${fRub0.format(rev)}`));
+      if (rev > 0) ps.appendChild(el('span', 'sub', `маржа ${fPct1.format(r.total / rev)}`));
     } else {
       ps.appendChild(el('b', 'pbig', '—')); ps.appendChild(el('span', 'sub', 'укажите себестоимость →'));
     }
@@ -874,7 +879,7 @@ function render() {
     const cm = costMap(); if (cm[r.article] != null && cm[r.article] !== '') inp.value = cm[r.article];
     ct.appendChild(inp); tr.appendChild(ct);
     tbody.appendChild(tr);
-    if (S.open.has(r.article)) { const d = el('tr', 'det'); const td = el('td'); td.colSpan = 5; td.appendChild(orderTable(r.list)); d.appendChild(td); tbody.appendChild(d); }
+    if (S.open.has(r.article)) { const d = el('tr', 'det'); const td = el('td'); td.colSpan = 6; td.appendChild(orderTable(r.list)); d.appendChild(td); tbody.appendChild(d); }
   });
 }
 
