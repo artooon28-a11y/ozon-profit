@@ -861,7 +861,8 @@ function render() {
     rt.appendChild(rs); tr.appendChild(rt);
     // net profit for the product over the period, returns and non-buyouts included
     const pt = el('td'); const ps = el('div', 'stack');
-    const lossSum = r.list.filter((p) => p.status !== 'Продажа').reduce((t, p) => t + p.profit, 0);
+    const sumOf = (st) => r.list.filter((p) => st.includes(p.status)).reduce((t, p) => t + p.profit, 0);
+    const lossSum = sumOf(['Невыкуп', 'Возврат']); const transit = sumOf(['В пути']); const other = sumOf(['Утилизация', 'Штраф']);
     if (r.cost_known) {
       ps.appendChild(el('b', 'pbig ' + (r.total < 0 ? 'neg' : 'pos'), fRub0.format(r.total)));
       if (rev > 0) ps.appendChild(el('span', 'sub', `маржа ${fPct1.format(r.total / rev)}`));
@@ -869,6 +870,8 @@ function render() {
       ps.appendChild(el('b', 'pbig', '—')); ps.appendChild(el('span', 'sub', 'укажите себестоимость →'));
     }
     if (Math.abs(lossSum) >= 1) ps.appendChild(el('span', 'sub', `в т. ч. невыкупы и возвраты ${fRub0.format(lossSum)}`));
+    if (Math.abs(transit) >= 1) ps.appendChild(el('span', 'sub', `в т. ч. логистика заказов в пути ${fRub0.format(transit)}`));
+    if (Math.abs(other) >= 1) ps.appendChild(el('span', 'sub', `в т. ч. утилизация и прочее ${fRub0.format(other)}`));
     pt.appendChild(ps); tr.appendChild(pt);
     const sp = el('td', 'c'); sp.appendChild(spark(r.list)); tr.appendChild(sp);
     const bt = el('td'); const bs = el('div', 'stack');
