@@ -38,6 +38,7 @@ INDEX = (Path(__file__).parent / "static" / "index.html").read_text(encoding="ut
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("ozon-profit")
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -146,13 +147,14 @@ async def sync(token: str, client_id: str, api_key: str) -> dict:
     client = OzonClient(client_id, api_key)
     try:
         prods = await client.products()
-        ops = await client.operations(first, today)
+        types = await client.accrual_types()
+        accs = await client.accruals(first, today)
     finally:
         await client.close()
     data = {
         "fetched_at": dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds"),
         "period": [first.isoformat(), today.isoformat()],
-        "lines": to_lines(ops, prods["sku_to_offer"], prods["names"]),
+        "lines": to_lines(accs, types, prods["sku_to_offer"], prods["names"]),
         "costs": prods["costs"], "names": prods["names"],
     }
     with db() as con:

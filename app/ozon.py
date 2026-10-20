@@ -17,7 +17,9 @@ import httpx
 
 API_BASE = os.environ.get("OZON_API_BASE", "https://api-seller.ozon.ru")
 
-PATH_TRANSACTIONS = "/v3/finance/transaction/list"
+# /v3/finance/transaction/list was switched off in September 2026; accruals now come day by day
+PATH_ACCRUALS_DAY = "/v1/finance/accrual/by-day"
+PATH_ACCRUAL_TYPES = "/v1/finance/accrual/types"
 PATH_PRODUCT_LIST = "/v3/product/list"
 PATH_PRODUCT_INFO = "/v3/product/info/list"
 PATH_PRICES = "/v5/product/info/prices"
@@ -61,6 +63,7 @@ class OzonClient:
     # ---------- checks ----------
     async def check(self) -> None:
         await self.post(PATH_PRODUCT_LIST, {"filter": {"visibility": "ALL"}, "last_id": "", "limit": 1})
+        await self.post(PATH_ACCRUAL_TYPES, {})  # the key must also see finance
 
     # ---------- products ----------
     async def products(self) -> dict:
@@ -112,49 +115,61 @@ class OzonClient:
         return {"names": {k: v["name"] for k, v in info.items()}, "sku_to_offer": sku_to_offer, "costs": costs}
 
     # ---------- finance ----------
-    async def operations(self, date_from: dt.date, date_to: dt.date) -> list[dict]:
-        """All finance operations, split into calendar months (Ozon allows up to one month per request)."""
+    async def accrual_types(self) -> dict[int, str]:
+        j = await self.post(PATH_ACCRUAL_TYPES, {})
+        return {int(t.get("id") or 0): (t.get("name") or t.get("description") or "") for t in j.get("accrual_types") or []}
+
+    async def accruals_day(self, day: dt.date) -> list[dict]:
+        out, last_id = [], ""
+        for _ in range(500):
+            j = await self.post(PATH_ACCRUALS_DAY, {"date": day.isoformat(), "last_id": last_id})
+            out.extend(j.get("accruals") or [])
+            last_id = j.get("last_id") or ""
+            if not last_id or not j.get("accruals"):
+                break
+        return out
+
+    async def accruals(self, date_from: dt.date, date_to: dt.date, parallel: int = 4) -> list[dict]:
+        """All accruals between the dates (the method takes one day per request)."""
+        days = [date_from + dt.timedelta(days=i) for i in range((date_to - date_from).days + 1)]
+        sem = asyncio.Semaphore(parallel)
+
+        async def one(d):
+            async with sem:
+                return await self.accruals_day(d)
+
         out = []
-        start = date_from
-        while start <= date_to:
-            month_end = (start.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
-            end = min(month_end, date_to)
-            page = 1
-            while True:
-                body = {
-                    "filter": {
-                        "date": {"from": f"{start.isoformat()}T00:00:00.000Z", "to": f"{end.isoformat()}T23:59:59.999Z"},
-                        "operation_type": [], "posting_number": "", "transaction_type": "all",
-                    },
-                    "page": page, "page_size": 1000,
-                }
-                res = (await self.post(PATH_TRANSACTIONS, body)).get("result") or {}
-                out.extend(res.get("operations") or [])
-                if page >= int(res.get("page_count") or 0):
-                    break
-                page += 1
-            start = end + dt.timedelta(days=1)
+        for chunk in await asyncio.gather(*(one(d) for d in days)):
+            out.extend(chunk)
         return out
 
 
 # ---------- conversion to page "lines" ----------
-def _service_bucket(name: str) -> str:
+def _num(m) -> float:
+    """Money object {"amount": "-12.5", "currency": "RUB"} or a plain number -> float."""
+    if isinstance(m, dict):
+        m = m.get("amount")
+    try:
+        return float(m or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def type_bucket(name: str) -> str:
+    """Accrual type name (Russian names from /v1/finance/accrual/types, or old English codes) -> page bucket."""
     n = (name or "").lower()
-    if "acquiring" in n:
+    if "эквайринг" in n or "acquiring" in n:
         return "acq"
-    if "return" in n or "notdeliv" in n:
+    if ("обратн" in n or "возврат" in n or "невыкуп" in n or "отмен" in n or "return" in n or "notdeliv" in n) and "реклам" not in n:
         return "rlog"
-    if "logistic" in n or "directflow" in n:
-        return "log"
-    return "svc"
-
-
-def _rest_bucket(op_type: str) -> str:
-    t = (op_type or "").lower()
-    if "costperclick" in t or "promotion" in t or "advert" in t or "premium" in t:
+    if any(k in n for k in ("реклам", "продвиж", "маркетинг", "трафарет", "за клик", "за заказ", "premium", "costperclick", "promotion")):
         return "ads"
-    if "fine" in t or "penalty" in t or "storage" in t or "disposal" in t or "utilization" in t:
+    if any(k in n for k in ("штраф", "утилизац", "жалоб", "хранени", "размещени", "fine", "penalty", "storage", "disposal")):
         return "fine"
+    if "вознагражд" in n or "комисси" in n:
+        return "fee"
+    if any(k in n for k in ("логистик", "доставк", "магистрал", "миля", "курьер", "logistic", "directflow", "delivto")):
+        return "log"
     return "svc"
 
 
@@ -163,52 +178,80 @@ def posting_key(s: str) -> str:
     return "-".join(p[:2]) if len(p) >= 3 else str(s or "")
 
 
-def to_lines(operations: list[dict], sku_to_offer: dict[str, str], names: dict[str, str]) -> list[dict]:
+def to_lines(accruals: list[dict], types: dict[int, str], sku_to_offer: dict[str, str], names: dict[str, str]) -> list[dict]:
+    """Convert /v1/finance/accrual/by-day records to the page "lines". Every record's total_amount is kept exactly:
+    whatever is not itemised goes to a remainder line, so the payout always matches Ozon."""
     lines = []
-    for op in operations:
-        amount = float(op.get("amount") or 0)
-        posting_number = (op.get("posting") or {}).get("posting_number") or ""
-        date = str(op.get("operation_date") or "")[:10]
-        op_type = op.get("operation_type") or ""
-        op_name = op.get("operation_type_name") or op_type
-        items = op.get("items") or []
 
-        # which products the operation belongs to (several units of one product are counted)
-        arts = Counter()
-        for it in items:
-            sku = str(it.get("sku") or "")
-            arts[sku_to_offer.get(sku) or (f"SKU {sku}" if sku else "-")] += 1
-        if not arts:
-            arts["-"] = 1
-        total_units = sum(arts.values())
+    def art_of(sku) -> str:
+        sku = str(sku or "")
+        return sku_to_offer.get(sku) or (f"SKU {sku}" if sku and sku != "0" else "")
 
-        parts = []  # (bucket, amount, revenue_flag)
-        afs = float(op.get("accruals_for_sale") or 0)
-        if afs:
-            parts.append(("rz" if afs > 0 else "rzNeg", afs, afs > 0))
-        commission = float(op.get("sale_commission") or 0)
-        if commission:
-            parts.append(("fee", commission, False))
-        for f, b in (("delivery_charge", "log"), ("return_delivery_charge", "rlog")):
-            v = float(op.get(f) or 0)
-            if v:
-                parts.append((b, v, False))
-        for s in op.get("services") or []:
-            v = float(s.get("price") or 0)
-            if v:
-                parts.append((_service_bucket(s.get("name")), v, False))
-        rest = round(amount - sum(p[1] for p in parts), 2)
-        if abs(rest) >= 0.01:  # anything Ozon did not itemise, so totals always match the payout
-            parts.append((_rest_bucket(op_type), rest, False))
+    for a in accruals:
+        cat = a.get("accrued_category") or "UNSPECIFIED"
+        unit = str(a.get("unit_number") or "")
+        key = posting_key(unit) or f"acc-{a.get('accrual_id')}"
+        date = str(a.get("date") or "")[:10]
+        total = _num(a.get("total_amount"))
+        parts = []  # (article, bucket, amount, revenue, qty, type name)
 
-        key = posting_key(posting_number) or f"op-{op.get('operation_id')}"
-        for art, units in arts.items():
-            share = units / total_units
-            for bucket, value, revenue in parts:
-                lines.append({
-                    "id": posting_number or key, "posting": key, "date": date,
-                    "group": op_name, "type": op_type, "bucket": bucket, "revenue": revenue,
-                    "article": art if art != "-" else "", "name": names.get(art, ""),
-                    "qty": units if revenue else 0, "amount": round(value * share, 2),
-                })
+        def add(art, bucket, amount, revenue=False, qty=0, tname=""):
+            if abs(amount) >= 0.005:
+                parts.append((art, bucket, amount, revenue, qty, tname))
+
+        def fee(art, f):
+            tname = types.get(int(f.get("type_id") or 0), "") or f"Начисление {f.get('type_id')}"
+            add(art, type_bucket(tname), _num(f.get("accrued")), tname=tname)
+
+        if cat == "POSTING":
+            for pr in (a.get("posting") or {}).get("products") or []:
+                art = art_of(pr.get("sku"))
+                c = pr.get("commission") or {}
+                sale = _num(c.get("sale_amount"))
+                unit_price = abs(_num(c.get("seller_price")))
+                qty = max(1, round(abs(sale) / unit_price)) if sale and unit_price else (1 if sale else 0)
+                if sale > 0:
+                    add(art, "rz", sale, True, qty, "Выручка")
+                elif sale < 0:
+                    add(art, "rzNeg", sale, tname="Возврат выручки")
+                comm = abs(_num(c.get("commission")))
+                if comm:  # charged on a sale, refunded on a return
+                    add(art, "fee", -comm if sale >= 0 else comm, tname="Вознаграждение Ozon")
+                d = pr.get("delivery") or {}
+                svcs = d.get("services") or []
+                if any(_num(x.get("accrued")) for x in svcs):
+                    for x in svcs:
+                        fee(art, x)
+                else:
+                    add(art, "log", _num(d.get("total_accrued")), tname="Логистика")
+        elif cat == "ITEM":
+            for it in (a.get("item_fees") or {}).get("fees") or []:
+                art = art_of(it.get("sku"))
+                for f in it.get("fees") or []:
+                    fee(art, f)
+        elif cat == "NON_ITEM":
+            f = a.get("non_item_fee") or {}
+            if f:
+                fee("", f)
+        elif cat == "CONTAINER_FEES":
+            for f in (a.get("container_fees") or {}).get("fees") or []:
+                fee("", f)
+
+        rest = round(total - sum(p[2] for p in parts), 2)
+        if abs(rest) >= 0.01:  # not itemised by Ozon (or itemised differently): keep totals exact
+            arts = [p[0] for p in parts if p[0]] or [""]
+            first = arts[0]
+            tname = "Прочие начисления"
+            if cat in ("NON_ITEM", "CONTAINER_FEES") and parts:
+                tname = parts[0][5]
+            add(first, type_bucket(tname) if tname != "Прочие начисления" else ("fee" if cat == "POSTING" else "svc"), rest, tname=tname)
+
+        group = {"POSTING": "Отправление", "ITEM": "Услуги по товару", "NON_ITEM": "Услуги продавцу", "CONTAINER_FEES": "Контейнер"}.get(cat, "Начисление")
+        for art, bucket, amount, revenue, qty, tname in parts:
+            lines.append({
+                "id": unit or key, "posting": key, "date": date,
+                "group": group, "type": tname, "bucket": bucket, "revenue": revenue,
+                "article": art, "name": names.get(art, ""),
+                "qty": qty if revenue else 0, "amount": round(amount, 2),
+            })
     return lines
