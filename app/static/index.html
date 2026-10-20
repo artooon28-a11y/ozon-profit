@@ -161,6 +161,12 @@
   .tag.bad { color: var(--neg); border-color: currentColor; }
   .tip { position: absolute; z-index: 5; pointer-events: none; min-width: 16rem; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); padding: 8px 10px; font-size: 13px; font-variant-numeric: tabular-nums; }
   .tip .t { color: var(--muted); margin-bottom: 4px; }
+  .tip.text { max-width: min(24rem, calc(100% - 16px)); white-space: normal; text-align: left; }
+  .tip.text .t { color: var(--fg); font-weight: 600; }
+  .tip.text p { color: var(--muted); margin: 4px 0 0; line-height: 1.45; }
+  th.hint { cursor: help; }
+  th.hint span { border-bottom: 1px dotted var(--muted); }
+  th.hint:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
   .tip .r { display: flex; justify-content: space-between; gap: 16px; padding: 1px 0; }
   .tip .r.sum { border-top: 1px solid var(--line); margin-top: 4px; padding-top: 4px; font-weight: 600; }
   .foot { color: var(--muted); font-size: 13px; display: grid; gap: 4px; max-width: 75ch; }
@@ -304,8 +310,8 @@
       <table id="tbl">
         <thead><tr>
           <th>Товар</th>
-          <th>Сумма продаж</th>
-          <th>Чистая прибыль<br>с учётом возвратов</th>
+          <th class="hint" tabindex="0" data-tip="sales"><span>Сумма продаж</span></th>
+          <th class="hint" tabindex="0" data-tip="profit"><span>Чистая прибыль<br>с учётом возвратов</span></th>
           <th class="c">Динамика прибыли</th>
           <th>Выкуп</th>
           <th>Себестоимость, ₽/шт.</th>
@@ -675,8 +681,33 @@ function feeCell(p, div, title) {
   td.appendChild(el('span', '', money(OZ.r2(p.fees / div))));
   feeInfo.set(td, { p, div, title }); return td;
 }
+const HINTS = {
+  sales: ['Сумма продаж', [
+    'Сколько стоили выкупленные товары по вашей цене за выбранный период — до комиссии и всех расходов Ozon.',
+    'Возвращённые товары из суммы вычтены, невыкупы в неё не входят. Скидки, которые Ozon оплачивает сам, сюда не попадают: считается ваша цена, а не цена для покупателя.',
+    'Под суммой — сколько штук продано.']],
+  profit: ['Чистая прибыль с учётом возвратов', [
+    'Сколько осталось у вас с товара за период: сумма продаж − комиссия Ozon − логистика, обработка и эквайринг − налог (и НДС, если выбран) − себестоимость.',
+    'Вычтены и потери на невыкупах и возвратах: Ozon берёт деньги за доставку туда и обратно, хотя продажи не было. Сюда же попадает уже списанная логистика заказов в пути.',
+    'Маржа — прибыль, делённая на сумму продаж.']],
+};
+function placeTip(anchor) {
+  tip.hidden = false;
+  const rb = ledger.getBoundingClientRect(), cb = anchor.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
+  tip.style.left = Math.max(8, Math.min(cb.left - rb.left + cb.width / 2 - w / 2, ledger.clientWidth - w - 8)) + 'px';
+  let top = cb.bottom - rb.top + 6;
+  if (cb.bottom + h + 12 > window.innerHeight && cb.top - rb.top - h - 6 > 0) top = cb.top - rb.top - h - 6;
+  tip.style.top = top + 'px';
+}
+function showHint(th) {
+  const hnt = HINTS[th.dataset.tip]; if (!hnt) return;
+  tip.className = 'tip text'; tip.replaceChildren(el('div', 't', hnt[0]));
+  hnt[1].forEach((t) => tip.appendChild(el('p', '', t)));
+  placeTip(th);
+}
 function showTip(td) {
   const info = feeInfo.get(td); if (!info) return;
+  tip.className = 'tip';
   const { p, div, title } = info; const price = p.realization / div;
   tip.replaceChildren(el('div', 't', title));
   PARTS.forEach(([k, label]) => {
@@ -686,18 +717,16 @@ function showTip(td) {
   });
   const s = el('div', 'r sum'); s.appendChild(el('span', '', 'Итого'));
   s.appendChild(el('span', '', money(OZ.r2(p.fees / div)) + (price > 0 ? ' · ' + fPct.format(-p.fees / p.realization) + ' цены' : ''))); tip.appendChild(s);
-  tip.hidden = false;
-  const rb = ledger.getBoundingClientRect(), cb = td.getBoundingClientRect(), w = tip.offsetWidth, h = tip.offsetHeight;
-  tip.style.left = Math.max(8, Math.min(cb.left - rb.left + cb.width / 2 - w / 2, ledger.clientWidth - w - 8)) + 'px';
-  let top = cb.bottom - rb.top + 6;
-  if (cb.bottom + h + 12 > window.innerHeight && cb.top - rb.top - h - 6 > 0) top = cb.top - rb.top - h - 6;
-  tip.style.top = top + 'px';
+  placeTip(td);
 }
 const hideTip = () => { tip.hidden = true; };
-ledger.addEventListener('mouseover', (e) => { const td = e.target.closest('td.fees'); if (td) showTip(td); });
-ledger.addEventListener('mouseout', (e) => { const td = e.target.closest('td.fees'); if (td && !td.contains(e.relatedTarget)) hideTip(); });
-ledger.addEventListener('focusin', (e) => { const td = e.target.closest('td.fees'); if (td) showTip(td); });
-ledger.addEventListener('focusout', (e) => { if (e.target.closest('td.fees')) hideTip(); });
+const tipTarget = (e) => e.target.closest('td.fees, th.hint');
+const showAny = (x) => (x.matches('th.hint') ? showHint(x) : showTip(x));
+ledger.addEventListener('mouseover', (e) => { const x = tipTarget(e); if (x) showAny(x); });
+ledger.addEventListener('mouseout', (e) => { const x = tipTarget(e); if (x && !x.contains(e.relatedTarget)) hideTip(); });
+ledger.addEventListener('focusin', (e) => { const x = tipTarget(e); if (x) showAny(x); });
+ledger.addEventListener('focusout', (e) => { if (tipTarget(e)) hideTip(); });
+ledger.addEventListener('click', (e) => { const x = e.target.closest('th.hint'); if (x) { if (tip.hidden) showHint(x); else hideTip(); } });
 
 // ===== render =====
 const tbody = document.querySelector('#tbl tbody');
