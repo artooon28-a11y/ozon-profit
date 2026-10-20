@@ -234,7 +234,7 @@
       <button type="button" class="btn" id="apiRefresh">Обновить</button>
       <button type="button" class="btn" id="apiOff">Отключить</button>
     </div>
-    <p class="sub apibar-note">Это ваша личная ссылка на дашборд: сохраните её в закладки и не пересылайте. Отключить доступ можно кнопкой выше или удалив ключ в кабинете Ozon.</p>
+    <p class="apibar-note"><b>Это ваша личная ссылка, храните её как пароль.</b> <span class="sub">Сохраните её в закладки и никому не пересылайте: кто откроет эту ссылку, увидит ваши данные. Чтобы поделиться сервисом, отправьте адрес главной страницы — seller-profit.online. Если ссылка случайно ушла не туда, нажмите «Отключить» выше или удалите ключ в кабинете Ozon.</span></p>
     <p class="err" id="apiErr" hidden></p>
   </section>
 
@@ -332,7 +332,7 @@
         <li>В кабинете Ozon откройте <b>Настройки → API ключи</b> (раздел Seller API) и нажмите «Сгенерировать ключ».</li>
         <li>Введите любое название, например «seller-profit», выберите одну роль — <b>Admin read only</b> — и нажмите «Сгенерировать». Другие роли не отмечайте, а полный <b>Admin</b> не выбирайте.</li>
         <li>Сразу скопируйте ключ: Ozon показывает его один раз. Client-Id указан на той же странице над списком ключей.</li>
-        <li>Вставьте Client-Id и ключ ниже.</li>
+        <li>Вставьте Client-Id и ключ ниже. Вы получите личную ссылку на свой дашборд — не пересылайте её никому: кто её откроет, увидит ваши данные.</li>
       </ol>
       <label class="fld">Client-Id<input id="cId" inputmode="numeric" required maxlength="40" placeholder="например, 1234567"></label>
       <label class="fld">API-ключ<input id="cKey" type="password" required maxlength="200" placeholder="ключ из кабинета"></label>
