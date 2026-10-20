@@ -131,7 +131,7 @@
   table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
   th { font-size: 12px; font-weight: 500; color: var(--muted); text-align: right; padding: 6px 6px; white-space: normal; border-bottom: 1px solid var(--line); white-space: nowrap; vertical-align: bottom; }
   td { padding: 10px 6px; border-bottom: 1px solid var(--line); text-align: right; white-space: nowrap; vertical-align: top; }
-  .stack .sub { white-space: normal; max-width: 11rem; text-align: right; }
+  .stack .sub { white-space: normal; max-width: 15rem; text-align: right; }
   th:first-child, td:first-child { text-align: left; }
   tr.prod { cursor: pointer; }
   tr.prod:hover > td { background: var(--sunk); }
@@ -144,6 +144,13 @@
   .stack { display: grid; justify-items: end; gap: 2px; }
   .stack b { font-weight: 600; }
   td.fees { cursor: help; }
+  th.c, td.c { text-align: center; }
+  .pbig { font-family: var(--f-display); font-weight: 500; font-size: 18px; letter-spacing: -.01em; }
+  .pbig.pos { color: var(--pos); } .pbig.neg { color: var(--neg); }
+  svg.spark { width: 150px; height: 40px; display: block; margin-inline: auto; overflow: visible; }
+  svg.spark rect.p { fill: var(--pos); } svg.spark rect.n { fill: var(--neg); }
+  svg.spark rect.hit { fill: transparent; } svg.spark line { stroke: var(--fg); stroke-opacity: .3; }
+  svg.spark g:hover rect.p, svg.spark g:hover rect.n { opacity: .7; }
   td.fees span { border-bottom: 1px dotted var(--muted); }
   tr.det > td { background: var(--sunk); padding: 0 0 12px 28px; }
   tr.det table { font-size: 13px; }
@@ -291,21 +298,16 @@
   </section>
 
   <section class="card" id="ledger">
-    <h2>Товары: последняя продажа и прибыль на 1 шт.</h2>
-    <p class="sub">Нажмите на товар, чтобы увидеть все его заказы за период. Наведите на «Расходы Ozon», чтобы увидеть, из чего они состоят. «С учётом выкупа» — сколько в среднем остаётся с продажи, если разложить на неё потери от невыкупов; в скобках — маржа от цены.</p>
+    <h2>Товары: чистая прибыль за период</h2>
+    <p class="sub">Прибыль по товару уже учитывает невыкупы и возвраты: их логистика вычтена. Нажмите на товар, чтобы увидеть все его заказы; наведите на «Расходы Ozon» в заказе, чтобы увидеть, из чего они состоят.</p>
     <div class="scroll">
       <table id="tbl">
         <thead><tr>
           <th>Товар</th>
-          <th>Последняя продажа</th>
-          <th>Цена</th>
-          <th>Расходы Ozon</th>
-          <th>К выплате</th>
-          <th id="thTax">Налог</th>
-          <th>Себестоимость, ₽/шт.</th>
-          <th>Прибыль</th>
+          <th>Чистая прибыль<br>с учётом возвратов</th>
+          <th class="c">Динамика прибыли</th>
           <th>Выкуп</th>
-          <th>С учётом выкупа<br>(маржа)</th>
+          <th>Себестоимость, ₽/шт.</th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -724,6 +726,36 @@ const fShort = (v) => { const a = Math.abs(v); const t = a >= 1e6 ? (a / 1e6).to
 const dshort = (d) => `${d.slice(8, 10)}.${d.slice(5, 7)}`;
 const daysBetween = (a, b) => Math.round((new Date(b + 'T00:00:00Z') - new Date(a + 'T00:00:00Z')) / 864e5);
 
+function buckets(rows, start, end, weekly) {
+  const keyOf = (d) => { if (!weekly) return d; const x = new Date(d + 'T00:00:00Z'); return shift(d, (x.getUTCDay() + 6) % 7); };
+  const keys = []; for (let d = keyOf(start); d <= end; d = shift(d, weekly ? -7 : -1)) keys.push(d);
+  const sum = Object.fromEntries(keys.map((k) => [k, 0])); const cnt = Object.fromEntries(keys.map((k) => [k, 0]));
+  rows.forEach((p) => { const k = keyOf(p.date); if (k in sum) { sum[k] += p.profit || 0; if (p.status === 'Продажа') cnt[k] += p.qty || 1; } });
+  return { keys, sum, cnt };
+}
+const bucketLabel = (k, weekly) => (weekly ? `${dshort(k)}–${dshort(shift(k, -6))}` : dt(k));
+
+function spark(list) {
+  const start = S.from || S.minDate, end = S.to || S.maxDate;
+  if (!start || !end) return el('span', 'sub', '—');
+  const weekly = daysBetween(start, end) + 1 > 14;
+  const { keys, sum, cnt } = buckets(list, start, end, weekly);
+  const W = 150, H = 40, vals = keys.map((k) => sum[k]);
+  let mx = Math.max(0, ...vals), mn = Math.min(0, ...vals); if (mx === mn) mx = 1;
+  const y = (v) => 2 + (mx - v) / (mx - mn) * (H - 4);
+  const svg = sv('svg', { class: 'spark', viewBox: `0 0 ${W} ${H}`, role: 'img', 'aria-label': 'Прибыль товара ' + (weekly ? 'по неделям' : 'по дням') });
+  const step = W / keys.length, bw = Math.max(1.5, Math.min(14, step * 0.7));
+  keys.forEach((k, i) => {
+    const v = sum[k], y0 = y(0), y1 = y(v); const g = sv('g', {});
+    const tt = sv('title', {}); tt.textContent = `${bucketLabel(k, weekly)}: ${fRub0.format(v)}${cnt[k] ? ` · ${cnt[k]} шт.` : ''}`; g.appendChild(tt);
+    g.appendChild(sv('rect', { x: i * step, y: 0, width: step, height: H, class: 'hit' }));
+    if (Math.abs(y1 - y0) > 0.3) g.appendChild(sv('rect', { x: i * step + (step - bw) / 2, width: bw, y: Math.min(y0, y1), height: Math.max(1, Math.abs(y1 - y0)), rx: Math.min(2, bw / 3), class: v >= 0 ? 'p' : 'n' }));
+    svg.appendChild(g);
+  });
+  svg.appendChild(sv('line', { x1: 0, x2: W, y1: y(0), y2: y(0) }));
+  return svg;
+}
+
 function renderTrend(all, rows) {
   const box = document.getElementById('trend'); box.replaceChildren();
   const note = document.getElementById('trendNote'); const delta = document.getElementById('heroDelta');
@@ -733,10 +765,7 @@ function renderTrend(all, rows) {
   const span = daysBetween(start, end) + 1;
   // bucket: day up to 45 days, otherwise week (Mon–Sun)
   const weekly = span > 45;
-  const keyOf = (d) => { if (!weekly) return d; const x = new Date(d + 'T00:00:00Z'); return shift(d, (x.getUTCDay() + 6) % 7); };
-  const keys = []; for (let d = keyOf(start); d <= end; d = shift(d, weekly ? -7 : -1)) keys.push(d);
-  const sum = Object.fromEntries(keys.map((k) => [k, 0])); const cnt = Object.fromEntries(keys.map((k) => [k, 0]));
-  rows.forEach((p) => { const k = keyOf(p.date); if (k in sum) { sum[k] += p.profit || 0; if (p.status === 'Продажа') cnt[k] += p.qty || 1; } });
+  const { keys, sum, cnt } = buckets(rows, start, end, weekly);
   note.textContent = weekly ? 'по неделям' : 'по дням';
   // change vs previous period of the same length
   const pEnd = shift(start, 1), pStart = shift(start, span);
@@ -806,7 +835,6 @@ function render() {
   renderTrend(all, rows);
   set('payout', fRub0.format(T.payout)); set('realization', `${T.sales} продаж за период`);
   const TC = taxRate();
-  document.getElementById('thTax').textContent = TC.vat ? 'Налог + НДС' : 'Налог';
   set('tax', fRub0.format(T.tax)); set('cost', fRub0.format(T.cost));
   set('taxnote', TC.base === 'profit' ? (T.tax < T.realization * 0.01 ? `за год не меньше 1% доходов (${fRub0.format(T.realization * 0.01)} за период)` : `${fPct.format(TC.rate)} от доходов минус расходы`) : '');
   document.getElementById('vatKpi').hidden = !TC.vat;
@@ -816,37 +844,37 @@ function render() {
   // ledger
   tbody.replaceChildren();
   const prods = OZ.products(rows, S.names);
-  if (!prods.length) { const tr = el('tr'); const td = el('td', 'muted', 'За этот период заказов нет.'); td.colSpan = 10; tr.appendChild(td); tbody.appendChild(tr); return; }
+  if (!prods.length) { const tr = el('tr'); const td = el('td', 'muted', 'За этот период заказов нет.'); td.colSpan = 5; tr.appendChild(td); tbody.appendChild(tr); return; }
   prods.forEach((r) => {
     const L = r.last; const per = (k) => (L ? OZ.r2(L[k] / L.qty) : null);
     const tr = el('tr', 'prod' + (S.open.has(r.article) ? ' open' : '')); tr.dataset.article = r.article;
     const n = el('td'); const w = el('div', 'pname'); w.appendChild(el('span', 'caret', '›'));
     const nm = el('div'); nm.appendChild(el('div', '', r.name));
-    nm.appendChild(el('div', 'sub', (r.article.startsWith('demo') ? 'пример' : 'арт. ' + r.article) + ` · ${r.sales} продаж · итого ${fRub0.format(r.total)}` + (L && L.qty > 1 ? ` · в последнем заказе ${L.qty} шт.` : '')));
+    nm.appendChild(el('div', 'sub', (r.article.startsWith('demo') ? 'пример' : 'арт. ' + r.article) + ` · ${r.sales} продаж` + (L ? ` · последняя ${dt(L.date)}` : '')));
     w.appendChild(nm); n.appendChild(w); tr.appendChild(n);
-    tr.appendChild(el('td', '', L ? dt(L.date) : 'нет продаж'));
-    tr.appendChild(tdMoney(per('realization')));
-    tr.appendChild(feeCell(L, L ? L.qty : 1, L ? `Последняя продажа ${dt(L.date)}` + (L.qty > 1 ? ', на 1 шт.' : '') : ''));
-    tr.appendChild(tdMoney(per('payout'))); tr.appendChild(tdMoney(per('taxes')));
+    // net profit for the product over the period, returns and non-buyouts included
+    const pt = el('td'); const ps = el('div', 'stack');
+    const rev = r.list.reduce((t, p) => t + Math.max(0, p.realization), 0);
+    const lossSum = r.list.filter((p) => p.status !== 'Продажа').reduce((t, p) => t + p.profit, 0);
+    if (r.cost_known) {
+      ps.appendChild(el('b', 'pbig ' + (r.total < 0 ? 'neg' : 'pos'), fRub0.format(r.total)));
+      if (rev > 0) ps.appendChild(el('span', 'sub', `${fPct1.format(r.total / rev)} от продаж на ${fRub0.format(rev)}`));
+    } else {
+      ps.appendChild(el('b', 'pbig', '—')); ps.appendChild(el('span', 'sub', 'укажите себестоимость →'));
+    }
+    if (Math.abs(lossSum) >= 1) ps.appendChild(el('span', 'sub', `в т. ч. невыкупы и возвраты ${fRub0.format(lossSum)}`));
+    pt.appendChild(ps); tr.appendChild(pt);
+    const sp = el('td', 'c'); sp.appendChild(spark(r.list)); tr.appendChild(sp);
+    const bt = el('td'); const bs = el('div', 'stack');
+    bs.appendChild(el('b', '', r.buyout == null ? '—' : fPct.format(r.buyout))); bs.appendChild(el('span', 'sub', `${r.sales} из ${r.sales + r.lost}`));
+    bt.appendChild(bs); tr.appendChild(bt);
     const ct = el('td'); const inp = el('input', 'costin' + (r.cost_known ? '' : ' missing'));
     inp.type = 'number'; inp.min = '0'; inp.step = '1'; inp.inputMode = 'decimal'; inp.placeholder = 'введите';
     inp.id = 'cost-' + r.article; inp.dataset.article = r.article; inp.setAttribute('aria-label', 'Себестоимость за штуку: ' + r.name);
     const cm = costMap(); if (cm[r.article] != null && cm[r.article] !== '') inp.value = cm[r.article];
     ct.appendChild(inp); tr.appendChild(ct);
-    tr.appendChild(tdMoney(r.cost_known ? per('profit') : null, true));
-    const bt = el('td'); const bs = el('div', 'stack');
-    bs.appendChild(el('b', '', r.buyout == null ? '—' : fPct.format(r.buyout))); bs.appendChild(el('span', 'sub', `${r.sales} из ${r.sales + r.lost}`));
-    bt.appendChild(bs); tr.appendChild(bt);
-    const at = el('td');
-    if (L && r.adj != null && r.cost_known) {
-      const as = el('div', 'stack'); const price = L.realization / L.qty;
-      as.appendChild(el('b', r.adj < 0 ? 'neg' : 'pos', fRub.format(r.adj) + (price > 0 ? ` (${fPct1.format(r.adj / price)})` : '')));
-      as.appendChild(el('span', 'sub', r.lost ? `− ${fRub0.format(r.avgLoss)} × ${r.lost}/${r.sales} невыкупов` : 'невыкупов не было'));
-      at.appendChild(as);
-    } else at.appendChild(el('span', 'sub', L ? 'нужна себестоимость' : '—'));
-    tr.appendChild(at);
     tbody.appendChild(tr);
-    if (S.open.has(r.article)) { const d = el('tr', 'det'); const td = el('td'); td.colSpan = 10; td.appendChild(orderTable(r.list)); d.appendChild(td); tbody.appendChild(d); }
+    if (S.open.has(r.article)) { const d = el('tr', 'det'); const td = el('td'); td.colSpan = 5; td.appendChild(orderTable(r.list)); d.appendChild(td); tbody.appendChild(d); }
   });
 }
 
