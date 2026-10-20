@@ -329,15 +329,16 @@
     <form class="how" id="connectForm" autocomplete="off">
       <strong>Подключить кабинет</strong>
       <ol>
-        <li>В кабинете Ozon откройте настройки и раздел с API-ключами.</li>
-        <li>Создайте ключ с ролью только для чтения и скопируйте Client-Id и сам ключ.</li>
-        <li>Вставьте их ниже.</li>
+        <li>В кабинете Ozon откройте <b>Настройки → API ключи</b> (раздел Seller API) и нажмите «Сгенерировать ключ».</li>
+        <li>Введите любое название, например «seller-profit», выберите одну роль — <b>Admin read only</b> — и нажмите «Сгенерировать». Другие роли не отмечайте, а полный <b>Admin</b> не выбирайте.</li>
+        <li>Сразу скопируйте ключ: Ozon показывает его один раз. Client-Id указан на той же странице над списком ключей.</li>
+        <li>Вставьте Client-Id и ключ ниже.</li>
       </ol>
       <label class="fld">Client-Id<input id="cId" inputmode="numeric" required maxlength="40" placeholder="например, 1234567"></label>
       <label class="fld">API-ключ<input id="cKey" type="password" required maxlength="200" placeholder="ключ из кабинета"></label>
       <button type="submit" class="cta" id="cBtn">Подключить</button>
       <p class="formerr" id="cErr" role="alert" hidden></p>
-      <span class="note">Ключ «только на чтение» не даёт доступа к деньгам, реквизитам и товарам. Он хранится на сервере в зашифрованном виде, и его можно отозвать в кабинете в любой момент. Не присылайте ключ в переписке.</span>
+      <span class="note">Ключ Admin read only позволяет только читать данные: изменить цены, товары или заказы им нельзя. Он хранится на сервере в зашифрованном виде. Чтобы отключиться, удалите ключ в кабинете Ozon — доступ пропадёт сразу. Не присылайте ключ в переписке.</span>
     </form>
   </section>
 
