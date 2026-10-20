@@ -242,7 +242,18 @@
         <option value="0.06">НПД 6% (продажи юрлицам)</option>
         <option value="0.06u">УСН «Доходы» 6%</option>
         <option value="0.01">УСН «Доходы» 1% (льготная ставка)</option>
+        <option value="p0.15">УСН «Доходы минус расходы» 15%</option>
+        <option value="p0.05">УСН «Доходы минус расходы» 5% (льготная ставка)</option>
         <option value="custom">Своя ставка</option>
+      </select>
+    </label>
+    <label class="field" id="vatWrap">НДС
+      <select id="vat">
+        <option value="0">Без НДС</option>
+        <option value="0.05">5% (УСН, без вычетов)</option>
+        <option value="0.07">7% (УСН, без вычетов)</option>
+        <option value="0.1">10% (с вычетом НДС Ozon)</option>
+        <option value="0.22">22% (с вычетом НДС Ozon)</option>
       </select>
     </label>
     <label class="field" id="customWrap" hidden><input type="number" id="taxCustom" min="0" max="30" step="0.1" value="4"> % от выручки</label>
@@ -273,7 +284,8 @@
 
   <section class="kpis" id="kpis" aria-label="Итоги за период">
     <div class="kpi"><span class="l">Ozon перечислит</span><span class="v" data-k="payout">—</span><span class="s" data-k="realization"></span></div>
-    <div class="kpi"><span class="l">Налог</span><span class="v" data-k="tax">—</span></div>
+    <div class="kpi"><span class="l">Налог</span><span class="v" data-k="tax">—</span><span class="s" data-k="taxnote"></span></div>
+    <div class="kpi" id="vatKpi" hidden><span class="l">НДС к уплате</span><span class="v" data-k="vat">—</span><span class="s" data-k="vatnote"></span></div>
     <div class="kpi"><span class="l">Себестоимость проданного</span><span class="v" data-k="cost">—</span><span class="s" data-k="costnote"></span></div>
     <div class="kpi"><span class="l">Выкуп</span><span class="v" data-k="buyout">—</span><span class="s" data-k="buyoutnote"></span></div>
   </section>
@@ -289,7 +301,7 @@
           <th>Цена</th>
           <th>Расходы Ozon</th>
           <th>К выплате</th>
-          <th>Налог</th>
+          <th id="thTax">Налог</th>
           <th>Себестоимость, ₽/шт.</th>
           <th>Прибыль</th>
           <th>Выкуп</th>
@@ -450,12 +462,22 @@ const OZ = (() => {
     }
     return out;
   }
-  function withProfit(postings, costs, taxRate) {
+  // cfg: { rate, base: 'revenue' | 'profit', vat, vatDeduct } (a bare number = tax on revenue, no VAT)
+  // VAT is inside the price: VAT = R·v/(1+v). On the general rates (10%, 22%) Ozon's fees carry 22% VAT you can deduct;
+  // on the УСН rates 5% / 7% there are no deductions. A УСН payer that pays VAT counts income and expenses without VAT.
+  const OZON_VAT = 0.22;
+  function withProfit(postings, costs, cfg) {
+    if (typeof cfg === 'number') cfg = { rate: cfg, base: 'revenue', vat: 0, vatDeduct: false };
+    const v = cfg.vat || 0; const ded = v > 0 && cfg.vatDeduct;
     return postings.map((p) => {
       const c = costs[p.article]; const known = c != null && c !== '' && !isNaN(+c);
       const cost = p.status === 'Продажа' && known ? r2(+c * p.qty) : 0;
-      const tax = r2(Math.max(0, p.realization) * taxRate);
-      return Object.assign({}, p, { tax, cost, cost_known: known, profit: r2(p.payout - tax - cost) });
+      const R = Math.max(0, p.realization); const F = R - p.payout; // what Ozon kept, incl. its VAT
+      const outVat = v > 0 ? R * v / (1 + v) : 0; const inVat = ded ? F * OZON_VAT / (1 + OZON_VAT) : 0;
+      const vat = r2(outVat - inVat);
+      const income = R - outVat; const spend = F - inVat + cost;
+      const tax = r2(cfg.base === 'profit' ? (income - spend) * cfg.rate : income * cfg.rate);
+      return Object.assign({}, p, { tax, vat, taxes: r2(tax + vat), cost, cost_known: known, profit: r2(p.payout - cost - vat - tax) });
     });
   }
   const isLost = (p) => p.status === 'Невыкуп' || p.status === 'Возврат';
@@ -475,7 +497,7 @@ const OZ = (() => {
   function totals(rows) {
     const s = (k) => r2(rows.reduce((t, p) => t + p[k], 0));
     const sold = rows.filter((p) => p.status === 'Продажа'); const lost = rows.filter(isLost).length;
-    return { realization: s('realization'), payout: s('payout'), tax: s('tax'), cost: s('cost'), profit: s('profit'),
+    return { realization: s('realization'), payout: s('payout'), tax: s('tax'), vat: s('vat'), cost: s('cost'), profit: s('profit'),
       sales: sold.length, lost, buyout: sold.length + lost ? sold.length / (sold.length + lost) : null,
       noCost: sold.filter((p) => !p.cost_known).length };
   }
@@ -602,6 +624,7 @@ const S = {
   costs: store.get('ozp.costs', {}),
   tax: store.get('ozp.tax', '0.04'),
   taxCustom: store.get('ozp.taxCustom', 4),
+  vat: store.get('ozp.vat', '0'),
   from: null, to: null, minDate: null, maxDate: null,
   open: new Set(),
 };
@@ -627,7 +650,13 @@ const dt = (d) => (d ? `${d.slice(8, 10)}.${d.slice(5, 7)}.${d.slice(0, 4)}` : '
 const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
 const tdMoney = (v, signed) => el('td', signed && v != null ? (v < 0 ? 'neg' : 'pos') : '', money(v));
 const shift = (d, n) => { const x = new Date(d + 'T00:00:00Z'); x.setUTCDate(x.getUTCDate() - n); return x.toISOString().slice(0, 10); };
-const taxRate = () => (S.tax === 'custom' ? Math.max(0, +S.taxCustom || 0) / 100 : parseFloat(S.tax));
+const isNPD = () => S.tax === '0.04' || S.tax === '0.06';
+const taxRate = () => {
+  const vat = isNPD() ? 0 : +S.vat || 0;
+  const base = S.tax.startsWith('p') ? 'profit' : 'revenue';
+  const rate = S.tax === 'custom' ? Math.max(0, +S.taxCustom || 0) / 100 : parseFloat(S.tax.replace(/^p/, ''));
+  return { rate, base, vat, vatDeduct: vat >= 0.1 };
+};
 const costMap = () => (S.demo ? DEMO_COSTS : API_TOKEN ? Object.assign({}, S.apiCosts, S.costs) : S.costs);
 
 // ===== fee tooltip =====
@@ -672,7 +701,7 @@ const statusCls = { 'Продажа': 'sale', 'Невыкуп': 'bad', 'Возв
 
 function orderTable(list) {
   const box = el('div', 'detbox'); const t = el('table'); const hr = el('tr');
-  ['Отправление', 'Дата', 'Статус', 'Шт.', 'Цена', 'Расходы Ozon', 'К выплате', 'Налог', 'Себестоимость', 'Прибыль'].forEach((h) => hr.appendChild(el('th', '', h)));
+  ['Отправление', 'Дата', 'Статус', 'Шт.', 'Цена', 'Расходы Ozon', 'К выплате', taxRate().vat ? 'Налог + НДС' : 'Налог', 'Себестоимость', 'Прибыль'].forEach((h) => hr.appendChild(el('th', '', h)));
   const th = el('thead'); th.appendChild(hr); t.appendChild(th);
   const tb = el('tbody');
   list.slice().sort(OZ.byDateDesc).forEach((p) => {
@@ -681,7 +710,7 @@ function orderTable(list) {
     const st = el('td'); st.appendChild(el('span', 'tag ' + (statusCls[p.status] || ''), p.status)); tr.appendChild(st);
     tr.appendChild(el('td', '', String(p.qty))); tr.appendChild(tdMoney(p.realization));
     tr.appendChild(feeCell(p, 1, 'Заказ ' + p.posting + (p.qty > 1 ? ', ' + p.qty + ' шт.' : '')));
-    tr.appendChild(tdMoney(p.payout)); tr.appendChild(tdMoney(p.tax));
+    tr.appendChild(tdMoney(p.payout)); tr.appendChild(tdMoney(p.taxes));
     tr.appendChild(el('td', '', p.status === 'Продажа' && !p.cost_known ? 'не указана' : money(p.cost)));
     tr.appendChild(tdMoney(p.profit, true)); tb.appendChild(tr);
   });
@@ -776,7 +805,12 @@ function render() {
   document.getElementById('heroMargin').textContent = T.realization > 0 ? `${fPct1.format(T.profit / T.realization)} от продаж на ${fRub0.format(T.realization)}` : '';
   renderTrend(all, rows);
   set('payout', fRub0.format(T.payout)); set('realization', `${T.sales} продаж за период`);
+  const TC = taxRate();
+  document.getElementById('thTax').textContent = TC.vat ? 'Налог + НДС' : 'Налог';
   set('tax', fRub0.format(T.tax)); set('cost', fRub0.format(T.cost));
+  set('taxnote', TC.base === 'profit' ? (T.tax < T.realization * 0.01 ? `за год не меньше 1% доходов (${fRub0.format(T.realization * 0.01)} за период)` : `${fPct.format(TC.rate)} от доходов минус расходы`) : '');
+  document.getElementById('vatKpi').hidden = !TC.vat;
+  set('vat', fRub0.format(T.vat)); set('vatnote', TC.vat ? (TC.vatDeduct ? 'за вычетом НДС в услугах Ozon' : 'без вычетов') : '');
   set('costnote', T.noCost ? `не указана у ${T.noCost} продаж` : '');
   set('buyout', T.buyout == null ? '—' : fPct.format(T.buyout)); set('buyoutnote', `${T.lost} невыкупов и возвратов`);
   // ledger
@@ -793,7 +827,7 @@ function render() {
     tr.appendChild(el('td', '', L ? dt(L.date) : 'нет продаж'));
     tr.appendChild(tdMoney(per('realization')));
     tr.appendChild(feeCell(L, L ? L.qty : 1, L ? `Последняя продажа ${dt(L.date)}` + (L.qty > 1 ? ', на 1 шт.' : '') : ''));
-    tr.appendChild(tdMoney(per('payout'))); tr.appendChild(tdMoney(per('tax')));
+    tr.appendChild(tdMoney(per('payout'))); tr.appendChild(tdMoney(per('taxes')));
     const ct = el('td'); const inp = el('input', 'costin' + (r.cost_known ? '' : ' missing'));
     inp.type = 'number'; inp.min = '0'; inp.step = '1'; inp.inputMode = 'decimal'; inp.placeholder = 'введите';
     inp.id = 'cost-' + r.article; inp.dataset.article = r.article; inp.setAttribute('aria-label', 'Себестоимость за штуку: ' + r.name);
@@ -833,7 +867,10 @@ tbody.addEventListener('change', (e) => {
 });
 const taxSel = document.getElementById('tax'), taxCustom = document.getElementById('taxCustom'), customWrap = document.getElementById('customWrap');
 taxSel.value = S.tax; taxCustom.value = S.taxCustom; customWrap.hidden = S.tax !== 'custom';
-taxSel.addEventListener('change', () => { S.tax = taxSel.value; store.set('ozp.tax', S.tax); customWrap.hidden = S.tax !== 'custom'; render(); });
+const vatSel = document.getElementById('vat'), vatWrap = document.getElementById('vatWrap');
+vatSel.value = S.vat; vatWrap.hidden = isNPD();
+taxSel.addEventListener('change', () => { S.tax = taxSel.value; store.set('ozp.tax', S.tax); customWrap.hidden = S.tax !== 'custom'; vatWrap.hidden = isNPD(); render(); });
+vatSel.addEventListener('change', () => { S.vat = vatSel.value; store.set('ozp.vat', S.vat); render(); });
 taxCustom.addEventListener('input', () => { S.taxCustom = taxCustom.value; store.set('ozp.taxCustom', S.taxCustom); render(); });
 const fromEl = document.getElementById('from'), toEl = document.getElementById('to');
 fromEl.addEventListener('change', () => { if (fromEl.value && fromEl.validity.valid) { S.from = fromEl.value; render(); } });
