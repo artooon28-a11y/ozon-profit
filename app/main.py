@@ -49,9 +49,14 @@ app.mount("/static/assets", StaticFiles(directory=Path(__file__).parent / "stati
 def db() -> sqlite3.Connection:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     con = sqlite3.connect(DB_PATH)
+    con.execute("PRAGMA secure_delete = ON")  # deleted keys are overwritten in the file, not just unlinked
     con.execute("""CREATE TABLE IF NOT EXISTS connections (
         token_hash TEXT PRIMARY KEY, client_id_enc BLOB, api_key_enc BLOB,
         created_at REAL, fetched_at REAL, cache_enc BLOB)""")
+    cols = {r[1] for r in con.execute("PRAGMA table_info(connections)")}
+    if "consent_version" not in cols:
+        con.execute("ALTER TABLE connections ADD COLUMN consent_version TEXT")
+        con.execute("ALTER TABLE connections ADD COLUMN consent_at REAL")
     return con
 
 
@@ -111,20 +116,52 @@ def index():
     return page()
 
 
+# ---------- legal pages ----------
+LEGAL_DIR = Path(__file__).parent / "legal"
+LEGAL = {"privacy": "Политика обработки персональных данных", "consent": "Согласие на обработку персональных данных", "terms": "Пользовательское соглашение"}
+
+
+def legal_page(name: str) -> HTMLResponse:
+    html = (LEGAL_DIR / "_layout.html").read_text(encoding="utf-8")
+    html = html.replace("@@TITLE@@", LEGAL[name]).replace("@@BODY@@", (LEGAL_DIR / f"{name}.html").read_text(encoding="utf-8"))
+    return HTMLResponse(html, headers={"Cache-Control": "no-cache", "X-Content-Type-Options": "nosniff"})
+
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy():
+    return legal_page("privacy")
+
+
+@app.get("/consent", response_class=HTMLResponse)
+def consent():
+    return legal_page("consent")
+
+
+@app.get("/terms", response_class=HTMLResponse)
+def terms():
+    return legal_page("terms")
+
+
 @app.get("/d/{token}", response_class=HTMLResponse)
 def dashboard(token: str):
     return page()
 
 
 # ---------- API ----------
+CONSENT_VERSION = "1.0 от 20.10.2026"
+
+
 class ConnectIn(BaseModel):
     client_id: str = Field(min_length=1, max_length=40)
     api_key: str = Field(min_length=10, max_length=200)
+    consent: bool = False
 
 
 @app.post("/api/connect")
 async def connect(body: ConnectIn, request: Request):
     limit(request.client.host if request.client else "?")
+    if not body.consent:
+        raise HTTPException(400, "Чтобы подключить кабинет, отметьте согласие на обработку персональных данных.")
     if not body.client_id.strip().isdigit():
         raise HTTPException(400, "Client-Id состоит только из цифр. Скопируйте его из раздела с API-ключами в кабинете.")
     client = OzonClient(body.client_id, body.api_key)
@@ -136,8 +173,10 @@ async def connect(body: ConnectIn, request: Request):
         await client.close()
     token = secrets.token_urlsafe(24)
     with db() as con:
-        con.execute("INSERT INTO connections VALUES (?,?,?,?,?,?)",
-                    (h(token), enc(body.client_id.strip()), enc(body.api_key.strip()), time.time(), None, None))
+        now = time.time()
+        con.execute("INSERT INTO connections (token_hash, client_id_enc, api_key_enc, created_at, fetched_at, cache_enc, consent_version, consent_at)"
+                    " VALUES (?,?,?,?,?,?,?,?)",
+                    (h(token), enc(body.client_id.strip()), enc(body.api_key.strip()), now, None, None, CONSENT_VERSION, now))
     return {"token": token}
 
 

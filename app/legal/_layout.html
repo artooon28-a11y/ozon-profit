@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>@@TITLE@@ — seller-profit.online</title>
+<link rel="stylesheet" href="/static/assets/fonts.css">
+<style>
+  :root { --bg: #f4f6f2; --panel: #ffffff; --fg: #16201b; --muted: #5b675f; --line: #dde3dc; --accent: #0d7350; }
+  @media (prefers-color-scheme: dark) { :root { --bg: #0e1411; --panel: #151d19; --fg: #e5ece7; --muted: #95a39a; --line: #26322c; --accent: #3fc48f; color-scheme: dark; } }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); }
+  body { font-family: "Golos Text", system-ui, sans-serif; font-size: 15.5px; line-height: 1.6; }
+  .wrap { max-width: 780px; margin: 0 auto; padding: 28px 16px 56px; }
+  a { color: var(--accent); }
+  .back { font-size: 14px; }
+  h1 { font-family: "Unbounded", "Golos Text", sans-serif; font-weight: 600; font-size: clamp(24px, 4vw, 32px); line-height: 1.15; margin: 18px 0 6px; }
+  .meta { color: var(--muted); font-size: 14px; margin: 0 0 24px; }
+  h2 { font-size: 18px; margin: 28px 0 8px; }
+  p, li { margin: 0 0 8px; }
+  ul, ol { padding-left: 22px; margin: 0 0 8px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
+  table { border-collapse: collapse; width: 100%; font-size: 14.5px; margin: 8px 0; }
+  th, td { text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); padding: 8px 6px; }
+  th { color: var(--muted); font-weight: 500; }
+  .scroll { overflow-x: auto; }
+  footer { margin-top: 36px; color: var(--muted); font-size: 14px; display: flex; flex-wrap: wrap; gap: 6px 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <a class="back" href="/">← На главную</a>
+  @@BODY@@
+  <footer>
+    <a href="/privacy">Политика обработки персональных данных</a>
+    <a href="/consent">Согласие на обработку персональных данных</a>
+    <a href="/terms">Пользовательское соглашение</a>
+  </footer>
+</div>
+</body>
+</html>

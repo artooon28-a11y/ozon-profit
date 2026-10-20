@@ -92,6 +92,11 @@
   .way button.cta[disabled] { opacity: .6; cursor: not-allowed; }
   .way .formerr { margin: 0; font-size: 13px; background: color-mix(in srgb, var(--neg) 10%, transparent); color: var(--neg); border-radius: 6px; padding: 6px 10px; }
   .way .note { font-size: 12px; color: var(--muted); }
+  .way .agree { display: flex; gap: 8px; align-items: flex-start; font-size: 13px; color: var(--muted); line-height: 1.45; }
+  .way .agree input { margin: 2px 0 0; width: 16px; height: 16px; accent-color: var(--accent); flex: none; }
+  .way .agree a { color: var(--accent); }
+  .legal { display: flex; flex-wrap: wrap; gap: 6px 18px; }
+  .legal a { color: inherit; }
   .drop { position: relative; border: 2px dashed var(--line); border-radius: var(--r); background: var(--panel); padding: 22px; display: grid; gap: 12px; align-content: center; justify-items: start; transition: border-color .15s, background .15s; }
   .drop.over { border-color: var(--accent); background: var(--accent-soft); }
   .drop strong { font-size: 17px; }
@@ -274,6 +279,7 @@
         <label class="fld">Client-Id<input id="cId" inputmode="numeric" required maxlength="40" placeholder="например, 1234567"></label>
         <label class="fld">API-ключ<input id="cKey" type="password" required maxlength="200" placeholder="ключ из кабинета"></label>
       </div>
+      <label class="agree"><input type="checkbox" id="cAgree" required> <span>Даю <a href="/consent" target="_blank">согласие на обработку персональных данных</a> и принимаю <a href="/terms" target="_blank">пользовательское соглашение</a>. Подробнее — в <a href="/privacy" target="_blank">политике</a>.</span></label>
       <button type="submit" class="cta" id="cBtn">Подключить</button>
       <p class="formerr" id="cErr" role="alert" hidden></p>
       <details>
@@ -406,8 +412,9 @@
       <strong>Нужны дополнительные показатели? Свяжитесь со мной</strong>
       <a class="tg-link" href="https://t.me/@@TG_USERNAME@@" target="_blank" rel="noopener">Telegram: <span class="tg-handle">@@@TG_USERNAME@@</span></a>
     </div>
-    <p>Как считается: «Ozon перечислит» — сумма всех строк отчёта. Налог берётся от цены продажи (реализации). Себестоимость вычитается только у выкупленных заказов. Невыкуп — заказ с обратной логистикой без продажи; «в пути» — заказ, по которому пока списан только эквайринг или доставка.</p>
+    <p>Как считается: «Ozon перечислит» — сумма всех строк отчёта. Налог считается по выбранной системе: от цены продажи или, для УСН «Доходы минус расходы», от разницы доходов и расходов. Себестоимость вычитается только у выкупленных заказов. Невыкуп — заказ с обратной логистикой без продажи; «в пути» — заказ, по которому пока списан только эквайринг или доставка.</p>
     <p>Неофициальный инструмент, не связан с Ozon. Расчёт ориентировочный и не заменяет бухгалтерию.</p>
+    <p class="legal"><a href="/privacy">Политика обработки персональных данных</a><a href="/consent">Согласие на обработку данных</a><a href="/terms">Пользовательское соглашение</a></p>
   </footer>
 </div>
 
@@ -1055,7 +1062,7 @@ form.addEventListener('submit', async (e) => {
   btn.disabled = true; btn.textContent = 'Проверяю ключ…';
   try {
     const r = await fetch('/api/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_id: document.getElementById('cId').value.trim(), api_key: document.getElementById('cKey').value.trim() }) });
+      body: JSON.stringify({ client_id: document.getElementById('cId').value.trim(), api_key: document.getElementById('cKey').value.trim(), consent: document.getElementById('cAgree').checked }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'Не удалось подключиться. Проверьте Client-Id и ключ.');
     location.href = '/d/' + j.token;
