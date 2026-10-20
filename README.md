@@ -74,11 +74,15 @@ docker compose up -d --build
 
 ## Обновление
 
-Замените файлы проекта новыми (кроме `.env`) и выполните:
+Сайт обновляется сам из GitHub. Один раз включите автообновление:
 
 ```bash
-cd /opt/ozon-profit && docker compose up -d --build
+cd /opt/ozon-profit && git pull && sh deploy/install-autoupdate.sh
 ```
+
+После этого сервер каждые 2 минуты проверяет ветку `main` и, если там новые коммиты, забирает их и пересобирает сайт. `.env` и данные не трогаются. Журнал обновлений: `tail -f /var/log/ozon-profit-update.log`.
+
+Обновить вручную, не дожидаясь: `sh /opt/ozon-profit/deploy/autoupdate.sh`. Выключить: `rm /etc/cron.d/ozon-profit-update`.
 
 ## Резервная копия
 
