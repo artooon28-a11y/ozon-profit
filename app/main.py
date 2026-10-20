@@ -148,7 +148,7 @@ def dashboard(token: str):
 
 
 # ---------- API ----------
-CONSENT_VERSION = "1.0 от 20.10.2026"
+CONSENT_VERSION = "1.1 от 20.10.2026"
 
 
 class ConnectIn(BaseModel):
