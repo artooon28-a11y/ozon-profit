@@ -4,7 +4,12 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="referrer" content="no-referrer">
-<title>Прибыль на Ozon</title>
+<title>Чистая прибыль на Ozon — калькулятор прибыли для селлеров</title>
+<meta name="description" content="Калькулятор чистой прибыли для продавцов Ozon: загрузите отчёт о начислениях и за минуту увидите реальную прибыль по каждому товару после комиссии, логистики, невыкупов, налога и себестоимости. Бесплатно, файл не покидает браузер.">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Сколько вы на самом деле зарабатываете на Ozon">
+<meta property="og:description" content="Чистая прибыль по каждому товару из отчёта о начислениях Ozon: комиссия, логистика, невыкупы, налог и себестоимость в одном расчёте.">
+<link rel="canonical" href="https://seller-profit.online/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Golos+Text:wght@400;500;600&family=Unbounded:wght@500;600&display=swap">
@@ -49,6 +54,13 @@
   h2 { font-size: 17px; font-weight: 600; margin: 0; }
   p { margin: 0; }
   .lede { color: var(--muted); max-width: 62ch; margin-top: 8px; }
+  .gains { margin: 12px 0 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; }
+  .gains li { display: flex; gap: 8px; align-items: baseline; }
+  .gains li::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); transform: translateY(-1px); }
+  .faq { display: grid; gap: 14px; max-width: 75ch; }
+  .faq h2 { font-family: var(--f-display); font-weight: 500; font-size: 20px; }
+  .faq h3 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
+  .faq p { color: var(--muted); font-size: 14px; }
   .muted { color: var(--muted); }
   .small { font-size: 13px; }
   .num { font-variant-numeric: tabular-nums; }
@@ -163,8 +175,13 @@
 <body>
 <div class="wrap">
   <header>
-    <h1>Прибыль на Ozon</h1>
-    <p class="lede">Перетащите отчёт о начислениях из кабинета продавца и сразу увидите чистую прибыль по каждому товару: после комиссии, логистики, невыкупов, налога и себестоимости. Файл обрабатывается в вашем браузере и никуда не отправляется.</p>
+    <h1>Сколько вы на самом деле зарабатываете на Ozon</h1>
+    <p class="lede">В кабинете Ozon видно выручку и десятки строк начислений, но не чистую прибыль. Загрузите отчёт и за минуту увидите, сколько осталось с каждого товара после комиссии, логистики, невыкупов, налога и себестоимости. Файл обрабатывается в вашем браузере и никуда не отправляется.</p>
+    <ul class="gains">
+      <li>Из чего на самом деле состоят расходы Ozon — по каждому заказу.</li>
+      <li>Сколько вы теряете на невыкупах и возвратах.</li>
+      <li>Какие товары приносят деньги, а какие работают в ноль.</li>
+    </ul>
   </header>
 
   <section class="upload" aria-label="Загрузка отчёта">
@@ -280,6 +297,26 @@
       <p class="formerr" id="cErr" role="alert" hidden></p>
       <span class="note">Ключ «только на чтение» не даёт доступа к деньгам, реквизитам и товарам. Он хранится на сервере в зашифрованном виде, и его можно отозвать в кабинете в любой момент. Не присылайте ключ в переписке.</span>
     </form>
+  </section>
+
+  <section class="faq" id="faq" aria-labelledby="faq-title">
+    <h2 id="faq-title">Как посчитать чистую прибыль на Ozon</h2>
+    <div>
+      <h3>Почему в кабинете Ozon не видно реальной прибыли</h3>
+      <p>Кабинет показывает выручку и начисления: комиссию, логистику, обработку отправлений, эквайринг, обратную логистику, штрафы. Каждое начисление — отдельная строка, часть из них приходит через несколько дней после продажи. Себестоимость и налог Ozon не учитывает вовсе, поэтому сумма к выплате ещё не прибыль.</p>
+    </div>
+    <div>
+      <h3>Что входит в расчёт</h3>
+      <p>Чистая прибыль = цена продажи − комиссия Ozon − логистика − обратная логистика невыкупов − услуги приёма и доставки − эквайринг − штрафы − налог − себестоимость. Калькулятор собирает все строки отчёта по каждому заказу и раскладывает их по товарам.</p>
+    </div>
+    <div>
+      <h3>Что такое прибыль с учётом выкупа</h3>
+      <p>Каждый невыкуп стоит вам логистики туда и обратно, а денег не приносит. Прибыль с учётом выкупа показывает, сколько в среднем остаётся с одной продажи, если разложить на неё эти потери. Это самая честная цифра юнит-экономики товара.</p>
+    </div>
+    <div>
+      <h3>Нужно ли давать доступ к кабинету</h3>
+      <p>Нет. Достаточно скачать отчёт о начислениях в разделе «Финансы» и перетащить его на эту страницу. Если хотите, чтобы данные обновлялись сами, кабинет можно подключить ключом Ozon API с правами только на чтение.</p>
+    </div>
   </section>
 
   <footer class="foot">
