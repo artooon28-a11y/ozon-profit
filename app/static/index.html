@@ -262,8 +262,7 @@
       <details>
         <summary>Где взять отчёт</summary>
         <ol>
-        <li>В кабинете продавца откройте <span class="path">Финансы → Начисления → Детализация начислений</span>.</li>
-        <li>Нажмите <span class="path">Скачать отчёт</span>, выберите <span class="path">По начислениям</span> и период.</li>
+        <li>В кабинете продавца откройте <span class="path">Финансы → Экономика магазина → Детализация начислений → Скачать отчёт</span>.</li>
         <li>Для себестоимости откройте <span class="path">Цены</span> и нажмите <span class="path">Скачать шаблон xlsx</span>.</li>
         <li>Перетащите оба файла в поле выше.</li>
       </ol>
@@ -462,7 +461,7 @@ const OZ = (() => {
   const postingKey = (id) => { const s = String(id || '').trim(); const p = s.split('-'); return p.length >= 3 ? p.slice(0, 2).join('-') : s; };
   function parseReport(rows) {
     const loc = locate(rows);
-    if (!loc) return { error: 'В файле нет столбцов «ID начисления», «Группа услуг», «Тип начисления» и «Сумма итого». Нужен отчёт из раздела Детализация начислений → Скачать отчёт → По начислениям.' };
+    if (!loc) return { error: 'В файле нет столбцов «ID начисления», «Группа услуг», «Тип начисления» и «Сумма итого». Нужен отчёт из раздела Финансы → Экономика магазина → Детализация начислений → Скачать отчёт.' };
     const { headerRow, idx } = loc; let period = '';
     for (let i = 0; i < headerRow; i++) { const c = (rows[i] || []).map(String).join(' '); if (/период/i.test(c)) period = c.replace(/^.*?период:\s*/i, '').trim(); }
     const lines = [];
@@ -1030,7 +1029,7 @@ async function addFiles(list) {
         Object.assign(S.costs, costs); store.set('ozp.costs', S.costs);
         S.costFile = { name: f.name, count: n };
       } else {
-        bad.push(`«${f.name}»: это не отчёт о начислениях и не файл «Товары и цены». Нужен отчёт из раздела Детализация начислений → Скачать отчёт → По начислениям.`);
+        bad.push(`«${f.name}»: это не отчёт о начислениях и не файл «Товары и цены». Нужен отчёт из раздела Финансы → Экономика магазина → Детализация начислений → Скачать отчёт.`);
       }
     } catch (e) { bad.push(`«${f.name}» не удалось прочитать. Загрузите файл .xlsx в том виде, в каком его скачал кабинет.`); }
   }
