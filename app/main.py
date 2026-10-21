@@ -22,7 +22,7 @@ from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, JSONResponse
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
@@ -114,6 +114,12 @@ def page() -> HTMLResponse:
 @app.get("/", response_class=HTMLResponse)
 def index():
     return page()
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+def favicon():
+    return FileResponse(Path(__file__).parent / "static" / "assets" / "favicon.ico", media_type="image/x-icon",
+                        headers={"Cache-Control": "public, max-age=604800"})
 
 
 # ---------- legal pages ----------
