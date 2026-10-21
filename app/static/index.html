@@ -668,6 +668,21 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } },
 };
 const API_TOKEN = (location.pathname.match(/^\/d\/([A-Za-z0-9_-]{20,})/) || [])[1] || null;
+
+// ===== anonymous counters: event name + where the seller came from (utm_source or ref), nothing else =====
+const SOURCE = (() => {
+  const q = new URLSearchParams(location.search);
+  const s = (q.get('utm_source') || q.get('ref') || '').toLowerCase();
+  if (/^[a-z0-9_.-]{1,32}$/.test(s)) { store.set('ozp.src', s); return s; }  // last tagged link wins
+  return store.get('ozp.src', '');
+})();
+const counted = new Set();
+function track(event) {
+  if (counted.has(event)) return;  // once per page load is enough for daily totals
+  counted.add(event);
+  fetch('/api/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, keepalive: true,
+    body: JSON.stringify({ event, source: SOURCE }) }).catch(() => {});
+}
 const S = {
   demo: !API_TOKEN,
   api: null,            // data from /api/data when connected
@@ -1035,6 +1050,8 @@ async function addFiles(list) {
     } catch (e) { bad.push(`«${f.name}» не удалось прочитать. Загрузите файл .xlsx в том виде, в каком его скачал кабинет.`); }
   }
   if (bad.length) showError(bad.join(' '));
+  if (gotReport) track('file_report');
+  if (S.costFile) track('file_costs');
   if (S.reports.length) S.demo = false;
   renderFiles();
   if (gotReport) rebuild(); else render();
@@ -1060,6 +1077,7 @@ if (insecure) {
   cErr.textContent = 'Подключение по API заработает, когда у сайта появится защищённое соединение (HTTPS). Пока пользуйтесь загрузкой файлов выше.';
   cErr.hidden = false;
 }
+document.getElementById('cId').addEventListener('focus', () => track('connect_start'));
 form.addEventListener('submit', async (e) => {
   e.preventDefault();
   cErr.hidden = true;
@@ -1067,7 +1085,7 @@ form.addEventListener('submit', async (e) => {
   btn.disabled = true; btn.textContent = 'Проверяю ключ…';
   try {
     const r = await fetch('/api/connect', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ client_id: document.getElementById('cId').value.trim(), api_key: document.getElementById('cKey').value.trim(), consent: document.getElementById('cAgree').checked }) });
+      body: JSON.stringify({ client_id: document.getElementById('cId').value.trim(), api_key: document.getElementById('cKey').value.trim(), consent: document.getElementById('cAgree').checked, source: SOURCE }) });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(typeof j.detail === 'string' ? j.detail : 'Не удалось подключиться. Проверьте Client-Id и ключ.');
     location.href = '/d/' + j.token;
@@ -1112,6 +1130,8 @@ if (API_TOKEN) {
     location.href = '/';
   });
   loadApi(false);
+} else {
+  track('visit');
 }
 
 rebuild();
