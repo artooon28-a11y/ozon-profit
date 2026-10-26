@@ -1036,7 +1036,7 @@ async function addFiles(list) {
   if (bad.length) showError(bad.join(' '));
   if (S.reports.length) S.demo = false;
   renderFiles();
-  if (gotReport) rebuild(); else render();
+  if (gotReport) { rebuild(); fetch('/api/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"name":"file"}', keepalive: true }).catch(() => {}); } else render();
 }
 fileIn.addEventListener('change', () => { if (fileIn.files.length) addFiles([...fileIn.files]); fileIn.value = ''; });
 ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('over'); }));
