@@ -115,7 +115,7 @@ def page() -> HTMLResponse:
 # Only daily totals are stored. A visitor is recognised within one day by a hash of IP + browser with a random salt
 # that lives only in memory and changes every day, so nothing stored can be traced back to a person.
 BOT_RE = ("bot", "crawl", "spider", "slurp", "preview", "headless", "curl", "wget", "python", "monitor")
-EVENTS = {"home", "dashboard", "file", "api_connect"}
+EVENTS = {"home", "dashboard", "file", "api_connect", "share_vk", "share_tg", "share_wa", "share_ig", "share_copy"}
 _seen: dict[str, set] = {}
 _salt: dict[str, bytes] = {}
 
@@ -177,8 +177,8 @@ class EventIn(BaseModel):
 
 @app.post("/api/event", status_code=204)
 def event(body: EventIn, request: Request):
-    if body.name == "file":
-        count("file", request)
+    if body.name == "file" or body.name.startswith("share_"):
+        count(body.name, request)
 
 
 @app.get("/stats/{key}", response_class=HTMLResponse)
@@ -192,7 +192,11 @@ def stats(key: str):
     by: dict[str, dict] = {}
     for day, ev, hits, uniq in rows:
         by.setdefault(day, {})[ev] = (hits, uniq)
-    cols = [("home", "Посещения главной", True), ("dashboard", "Открытия дашбордов", True), ("file", "Загрузили отчёт", False), ("api_connect", "Подключили API", False)]
+    cols = [("home", "Посещения главной", True), ("dashboard", "Открытия дашбордов", True), ("file", "Загрузили отчёт", False), ("api_connect", "Подключили API", False), ("share", "Поделились", False)]
+    for d in by.values():  # all share buttons in one column
+        sh = [v for k, v in d.items() if k.startswith("share_")]
+        if sh:
+            d["share"] = (sum(x[0] for x in sh), 0)
     def cell(d, ev, uq):
         h, u = d.get(ev, (0, 0))
         return f"<td>{h}<span>{f' · {u} чел.' if uq and h else ''}</span></td>"
@@ -213,7 +217,7 @@ body{{margin:0;background:var(--bg);color:var(--fg);font-family:"Golos Text",sys
 th,td{{padding:8px 12px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}} th:first-child,td:first-child{{text-align:left}} th{{font-size:12px;color:var(--muted);font-weight:500}} td span{{color:var(--muted);font-size:13px}}
 </style></head><body><div class="w"><h1>Статистика</h1>
 <p class="m">За последние 60 дней. Сейчас подключено кабинетов по API: <b>{active}</b>. «Чел.» — разные посетители за день: один человек в разные дни считается заново. Боты не считаются.</p>
-<div class="ks">{cards}</div><div class="s"><table><tr><th>День</th>{head}</tr>{body or '<tr><td colspan=5>Пока нет данных</td></tr>'}</table></div></div></body></html>"""
+<div class="ks">{cards}</div><div class="s"><table><tr><th>День</th>{head}</tr>{body or '<tr><td colspan=6>Пока нет данных</td></tr>'}</table></div></div></body></html>"""
     return HTMLResponse(html, headers={"Cache-Control": "no-store", "X-Robots-Tag": "noindex", "Referrer-Policy": "no-referrer"})
 
 

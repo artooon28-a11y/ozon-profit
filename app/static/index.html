@@ -62,6 +62,17 @@
   .gains li { display: flex; gap: 8px; align-items: baseline; }
   .gains li::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--accent); transform: translateY(-1px); }
   .faq { display: grid; gap: 14px; max-width: 75ch; }
+  .share { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 18px 20px; display: grid; gap: 12px; }
+  .share h2 { font-family: var(--f-display); font-weight: 500; font-size: 19px; }
+  .share .sub { margin-top: 4px; }
+  .share-btns { display: flex; flex-wrap: wrap; gap: 8px; }
+  .sh { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 14px; font-weight: 500; text-decoration: none; cursor: pointer; border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 99px; padding: 8px 16px; }
+  .sh::before { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--dot, var(--accent)); }
+  .sh:hover { border-color: var(--dot, var(--accent)); }
+  .sh:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .sh-vk { --dot: #0077ff; } .sh-tg { --dot: #29a9eb; } .sh-wa { --dot: #25d366; } .sh-ig { --dot: #e1306c; } .sh-copy { --dot: var(--muted); }
+  .share-msg { color: var(--pos); }
+  .share-note { font-size: 11.5px; color: var(--muted); margin: 0; }
   .faq h2 { font-family: var(--f-display); font-weight: 500; font-size: 20px; }
   .faq h3 { font-size: 15px; font-weight: 600; margin: 0 0 4px; }
   .faq p { color: var(--muted); font-size: 14px; }
@@ -390,6 +401,22 @@
     <div class="tip" id="tip" role="tooltip" hidden></div>
   </section>
 
+
+  <section class="share" id="share" aria-labelledby="share-title">
+    <div>
+      <h2 id="share-title">Поделитесь с другими селлерами</h2>
+      <p class="sub">Сервис бесплатный. Если он пригодился, отправьте ссылку тем, кто тоже продаёт на Ozon.</p>
+    </div>
+    <div class="share-btns">
+      <a class="sh sh-vk" data-net="vk" target="_blank" rel="noopener">ВКонтакте</a>
+      <a class="sh sh-tg" data-net="tg" target="_blank" rel="noopener">Telegram</a>
+      <a class="sh sh-wa" data-net="wa" target="_blank" rel="noopener">WhatsApp</a>
+      <button type="button" class="sh sh-ig" data-net="ig">Instagram*</button>
+      <button type="button" class="sh sh-copy" data-net="copy">Скопировать ссылку</button>
+    </div>
+    <p class="sub share-msg" id="shareMsg" role="status" hidden></p>
+    <p class="share-note">* Instagram принадлежит компании Meta, деятельность которой признана экстремистской и запрещена в России.</p>
+  </section>
 
   <section class="faq" id="faq" aria-labelledby="faq-title">
     <h2 id="faq-title">Как посчитать чистую прибыль на Ozon</h2>
@@ -1112,6 +1139,36 @@ if (API_TOKEN) {
   });
   loadApi(false);
 }
+
+// ===== share buttons: always the public address, never a personal /d/ link =====
+(() => {
+  const URL_ = 'https://seller-profit.online/';
+  const TEXT = 'Калькулятор чистой прибыли для продавцов Ozon: комиссия, логистика, невыкупы, налог и себестоимость по каждому товару. Бесплатно';
+  const enc = encodeURIComponent;
+  const links = {
+    vk: `https://vk.com/share.php?url=${enc(URL_)}&title=${enc('Чистая прибыль на Ozon')}&comment=${enc(TEXT)}`,
+    tg: `https://t.me/share/url?url=${enc(URL_)}&text=${enc(TEXT)}`,
+    wa: `https://wa.me/?text=${enc(TEXT + ' ' + URL_)}`,
+  };
+  const msg = document.getElementById('shareMsg');
+  const say = (t) => { msg.textContent = t; msg.hidden = false; clearTimeout(say.t); say.t = setTimeout(() => { msg.hidden = true; }, 6000); };
+  const ping = (net) => fetch('/api/event', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'share_' + net }), keepalive: true }).catch(() => {});
+  const copy = async () => { try { await navigator.clipboard.writeText(URL_); return true; } catch { return false; } };
+  document.querySelectorAll('#share .sh').forEach((b) => {
+    const net = b.dataset.net;
+    if (links[net]) b.href = links[net];
+    b.addEventListener('click', async (e) => {
+      ping(net);
+      if (net === 'ig') {
+        e.preventDefault();
+        if (navigator.share) { try { await navigator.share({ title: 'Чистая прибыль на Ozon', text: TEXT, url: URL_ }); return; } catch { /* closed */ } }
+        say(await copy() ? 'Ссылка скопирована. Вставьте её в сторис (стикер «Ссылка»), в описание профиля или в Директ.' : 'Скопируйте адрес: seller-profit.online');
+      } else if (net === 'copy') {
+        say(await copy() ? 'Ссылка скопирована: seller-profit.online' : 'Скопируйте адрес: seller-profit.online');
+      }
+    });
+  });
+})();
 
 rebuild();
 </script>
